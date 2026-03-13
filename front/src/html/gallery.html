@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<title>Camagru</title>
+	<link rel="stylesheet" href="../styles/gallery.css">
+	<link rel="stylesheet" href="../styles/header.css">
+</head>
+
+<body>
+	<header>
+		<span>
+			<h1>Camagru</h1>
+			<nav>
+				<a href="sign.html">Log in</a>
+				<a href="create.html">Create</a>
+				<button>Log out</button>
+			</nav>
+		</span>
+	</header>
+
+	<main>
+		<section>
+			<h1>Gallery</h1>
+			<div class="posts-grid">
+				<section class="post">
+					<h2>bob shared</h2>
+					<img src="../../pub/test.jpg" class="imagePost">
+					<section class="buttonPost">
+						<button>Like</button>
+						<form action="/url" method="POST">
+							<input type="text" name="comment" placeholder="Enter your comment">
+							<button type="submit">Comment</button>
+						</form>
+					</section>
+				</section>
+
+				<section class="post">
+					<h2>roho shared</h2>
+					<img src="../../pub/test.jpg" class="imagePost">
+					<section class="buttonPost">
+						<button>Like</button>
+						<form action="/url" method="POST">
+							<input type="text" name="comment" placeholder="Enter your comment">
+							<button type="submit">Comment</button>
+						</form>
+					</section>
+				</section>
+				<section class="post">
+					<h2>roho shared</h2>
+					<img src="../../pub/test.jpg" class="imagePost">
+					<section class="buttonPost">
+						<button>Like</button>
+						<form action="/url" method="POST">
+							<input type="text" name="comment" placeholder="Enter your comment">
+							<button type="submit">Comment</button>
+						</form>
+					</section>
+				</section>
+				
+			</div>
+		</section>
+
+		<section id="pages">
+			<button type="button" disabled>Previous</button>
+			<p>Page 1 out of 5</p>
+			<button type="button">Next</button>
+		</section>
+	</main>
+
+	<footer>
+		<p>Maystern.Games</p>
+	</footer>
+</body>
+
+</html>

@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Roboto+Mono&family=Space+Grotesk:wght@500;700&display=swap');
+
+body {
+    background-color: #0A0A0C; 
+    color: #F4F4F6;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+}
+
+header > span {
+	padding-top: 1%;
+    display: flex;
+    justify-content: space-between; /* h1 left, nav right */
+    align-items: center;            /* vertical alignment */
+    width: 100%;
+	background-color: #0A0A0C; /* Void Black */
+	border-bottom: 1px solid #333; /* Subtle separation */
+}
+
+header h1 {
+    margin: 0;
+    padding-left: 20px;
+	color: #F4F4F6;
+	font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+header nav {
+    display: flex;
+    gap: 24px;
+	padding-right: 5%;
+    align-items: center;
+}
+
+header nav a {
+    color: #8E95A3;
+	text-decoration: none;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+header nav a:hover {
+    color: #00F0FF;
+	text-decoration: none;
+}
+
+header button {
+    background: transparent;
+    border: 1px solid #FF4D00; /* Airlock Orange styling for logout */
+    color: #FF4D00;
+    font-family: 'Roboto Mono', monospace;
+    text-transform: uppercase;
+    padding: 5px 15px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
