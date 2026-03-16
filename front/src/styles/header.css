@@ -10,11 +10,13 @@ body {
 header > span {
 	padding-top: 1%;
     display: flex;
-    justify-content: space-between; /* h1 left, nav right */
-    align-items: center;            /* vertical alignment */
+    justify-content: space-between;
+    align-items: center;
     width: 100%;
-	background-color: #0A0A0C; /* Void Black */
-	border-bottom: 1px solid #333; /* Subtle separation */
+	background-color: #0A0A0C;
+	border-bottom: 1px solid #333;
+    padding-bottom: 10px; 
+    
 }
 
 header h1 {
@@ -51,7 +53,7 @@ header nav a:hover {
 
 header button {
     background: transparent;
-    border: 1px solid #FF4D00; /* Airlock Orange styling for logout */
+    border: 1px solid #FF4D00;
     color: #FF4D00;
     font-family: 'Roboto Mono', monospace;
     text-transform: uppercase;

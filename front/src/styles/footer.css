@@ -1,0 +1,14 @@
+footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background-color: #1B1B1D;
+    color: #8c8c8d;
+    text-align: left;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+}
+
+footer p {
+    padding-left: 1%;
+}

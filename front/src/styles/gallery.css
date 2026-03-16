@@ -10,23 +10,19 @@ main h1 {
 
 .posts-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	grid-template-columns: repeat(3, 1fr);
 	gap: 24px;
 	padding: 20px 5%;
 }
 
 .post {
 	border: 1px solid #8E95A3;
-	/* Gunmetal Grey */
 	border-radius: 0;
-	/* Hard edges */
 	padding: 16px;
 	background: #0A0A0C;
-	/* Void Black */
 	position: relative;
 }
 
-/* Decorative corner accent */
 .post::after {
 	content: '';
 	position: absolute;
@@ -80,8 +76,8 @@ main h1 {
 }
 
 .buttonPost>button:hover {
-	background: #F4F4F6;
-	box-shadow: 0 0 10px #D4FF00;
+	background: #f6f6f4;
+	transform: scale(1.05);
 }
 
 .buttonPost form {
@@ -123,40 +119,68 @@ main h1 {
 }
 
 #pages {
-    display: flex;
-    justify-content: center;
-    align-items: center; 
-    margin-top: 50px;
-    gap: 20px;
-    font-family: 'Roboto Mono', monospace;
-    text-transform: uppercase;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	margin-top: 50px;
+	gap: 20px;
+	font-family: 'Roboto Mono', monospace;
+	text-transform: uppercase;
 }
 
 #pages p {
-    color: #8E95A3; 
-    letter-spacing: 2px;
+	color: #8E95A3;
+	letter-spacing: 2px;
 }
 
 #pages button {
-    font-size: 10px;
-    font-family: 'Roboto Mono', monospace;
-    text-transform: uppercase;
-    background: #0A0A0C; 
-    color: #a1a1a3;
-    border: 1px solid #4A4D54; 
-    outline: none;
-    padding: 12px 16px; 
-    min-width: 85px; 
-    
-    transform-origin: center;
-    transition: all 0.15s ease-out; 
+	font-size: 10px;
+	font-family: 'Roboto Mono', monospace;
+	text-transform: uppercase;
+	background: #0A0A0C;
+	color: #a1a1a3;
+	border: 1px solid #4A4D54;
+	outline: none;
+	padding: 12px 16px;
+	min-width: 85px;
+
+	transform-origin: center;
+	transition: all 0.15s ease-out;
 }
 
 #pages button:hover {
-    background: #D4FF00; 
-    color: #0A0A0C;
-    border-color: #D4FF00;
-    cursor: pointer;
-    transform: scale(1.05); 
-    box-shadow: 0 0 10px rgba(212, 255, 0, 0.2);
+	background: #D4FF00;
+	color: #0A0A0C;
+	border-color: #D4FF00;
+	cursor: pointer;
+	transform: scale(1.05);
+	box-shadow: 0 0 10px rgba(212, 255, 0, 0.2);
+}
+
+#pagesBox {
+	margin-top: 20px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 10px;
+	color: #8E95A3;
+}
+
+#pagesBox select {
+	background: transparent;
+	border: 1px solid #8E95A3;
+	color: #F4F4F6;
+	font-family: 'Roboto Mono', monospace;
+	padding: 8px;
+	outline: none;
+	border-radius: 0;
+}
+
+#pagesBox select:hover {
+	background: #D4FF00;
+	color: #0A0A0C;
+	border-color: #D4FF00;
+	cursor: pointer;
+	transform: scale(1.05);
+	box-shadow: 0 0 10px rgba(212, 255, 0, 0.2);
 }
