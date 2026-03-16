@@ -1,0 +1,265 @@
+.creation-studio {
+	display: flex;
+	gap: 40px;
+	padding: 20px 5%;
+	min-height: 80vh;
+}
+
+.main-editor {
+	flex: 3;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.main-editor h1 {
+	font-family: 'Space Grotesk', sans-serif;
+	text-transform: uppercase;
+	font-weight: 700;
+	letter-spacing: 4px;
+	color: #F4F4F6;
+	margin: 0;
+	text-align: center;
+}
+
+.camera-wrapper {
+	position: relative;
+	background: #0A0A0C;
+	border: 1px solid #333;
+	padding: 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 20px;
+}
+
+.camera-feed {
+	position: relative;
+	width: 100%;
+	max-width: 640px;
+	aspect-ratio: 4/3;
+	background: #000;
+	border: 1px solid #4A4D54;
+	overflow: hidden;
+}
+
+.camera-feed img#video-feed {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+#overlay-layer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+.controls-area {
+	display: flex;
+	gap: 20px;
+	align-items: center;
+	width: 100%;
+	justify-content: center;
+}
+
+#capture-btn {
+	background: #D4FF00;
+	color: #0A0A0C;
+	border: none;
+	padding: 12px 32px;
+	font-family: 'Space Grotesk', sans-serif;
+	font-weight: 700;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: all 0.2s;
+	font-size: 1rem;
+}
+
+#capture-btn:hover:not(:disabled) {
+	background: #f6f6f4;
+	transform: scale(1.05);
+}
+
+#capture-btn:disabled {
+	background: #333;
+	color: #8E95A3;
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.upload-wrapper {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 5px;
+}
+
+.upload-wrapper input[type="file"] {
+	display: none;
+}
+
+.upload-label {
+	color: #8E95A3;
+	border: 1px solid #8E95A3;
+	padding: 8px 16px;
+	font-family: 'Roboto Mono', monospace;
+	text-transform: uppercase;
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.upload-label:hover {
+	color: #00F0FF;
+	border-color: #00F0FF;
+}
+
+.filter-section {
+	margin-top: 20px;
+	border-top: 1px solid #333;
+	padding-top: 20px;
+}
+
+.filter-section h3 {
+	font-family: 'Space Grotesk', sans-serif;
+	text-transform: uppercase;
+	color: #F4F4F6;
+	margin-bottom: 15px;
+}
+
+.filter-list {
+	margin-top: 40px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 15px;
+	padding: 10px;
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.filter-item {
+	cursor: pointer;
+	position: relative;
+	border: 1px solid transparent;
+	transition: all 0.2s;
+}
+
+.filter-item:hover {
+	transform: scale(1.05);
+}
+
+.filter-item input[type="radio"] {
+	position: absolute;
+	opacity: 0;
+	cursor: pointer;
+	height: 0;
+	width: 0;
+}
+
+.filter-item img {
+	width: 80px;
+	height: 80px;
+	object-fit: contain;
+	background: #1A1A1D;
+	padding: 5px;
+	border: 1px solid #333;
+	display: block;
+}
+
+.filter-item input[type="radio"]:checked+img {
+	border: 2px solid #D4FF00;
+	box-shadow: 0 0 10px rgba(212, 255, 0, 0.4);
+}
+
+
+.side-gallery {
+	flex: 1;
+	background: #0A0A0C;
+	border-left: 1px solid #333;
+	padding-left: 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	max-height: 80vh;
+	overflow-y: auto;
+}
+
+.side-gallery h3 {
+	font-family: 'Space Grotesk', sans-serif;
+	text-transform: uppercase;
+	color: #F4F4F6;
+	border-bottom: 1px solid #333;
+	padding-bottom: 10px;
+	margin-bottom: 10px;
+	position: sticky;
+	top: 0;
+	background: #0A0A0C;
+	z-index: 10;
+}
+
+.thumbnail-list {
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+}
+
+.thumbnail {
+	position: relative;
+	border: 1px solid #333;
+	padding: 10px;
+	transition: border-color 0.2s;
+}
+
+.thumbnail:hover {
+	border-color: #8E95A3;
+}
+
+.thumbnail img {
+	width: 100%;
+	height: auto;
+	display: block;
+	margin-bottom: 10px;
+	border: 1px solid #333;
+}
+
+.delete-btn {
+	width: 100%;
+	background: transparent;
+	border: 1px solid #FF4D00;
+	color: #FF4D00;
+	font-family: 'Roboto Mono', monospace;
+	text-transform: uppercase;
+	padding: 5px;
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.delete-btn:hover {
+	background: #FF4D00;
+	color: #0A0A0C;
+	transform: scale(1.02);
+}
+
+/* Scrollbar styling for filters and thumbnails */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #0A0A0C;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #333;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #555;
+}

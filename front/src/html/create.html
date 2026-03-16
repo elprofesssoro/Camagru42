@@ -15,32 +15,93 @@
 			<h1>Create your image</h1>
 			<nav>
 				<a href="gallery.html">Gallery</a>
-				<button>Log out</button>
+				<button id="logoutButton">Log out</button>
 			</nav>
 		</span>
 	</header>
 
-	<main>
-		<section>
+	<main class="creation-studio">
+		<section class="main-editor">
 			<h1>Take an image</h1>
-			<section>
-				<form action="/url" method="post">
-					<img src="/front/pub/test.jpg" alt="CurrentImage">
-					<button type="button">Take</button>
-					<input type="file" name="uploadImage" accept="text/*">
-					<img src="/front/pub/transparency.png" width="10%">
-					<button type="submit">Post</button>
-				</form>
-			</section>
-		</section>
-		<section>
-			<h1>Your pictures</h1>
-			<section>
-				<img src="/front/pub/test2.png" width="10%" alt="picture1">
-				<button type="submit">Delete</button>
-			</section>
+			<div class="camera-wrapper">
+				<div class="camera-feed">
+					<img src="../../pub/test.jpg" alt="Camera Feed" id="video-feed">
+					<div id="overlay-layer"></div>
+				</div>
 
+				<div class="controls-area">
+					<button id="capture-btn" disabled>Capture</button>
+					<div class="upload-wrapper">
+						<label for="upload-file" class="upload-label">Upload image</label>
+						<input type="file" id="upload-file" accept="image/*">
+					</div>
+				</div>
+			</div>
+
+			<section class="filter-section">
+				<h3>Superposable Images</h3>
+				<div class="filter-list">
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter1">
+						<img src="../../pub/transparency.png" alt="Filter 1">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter2">
+						<img src="../../pub/transparency.png" alt="Filter 2">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter3">
+						<img src="../../pub/transparency.png" alt="Filter 3">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+					<label class="filter-item">
+						<input type="radio" name="filter" value="filter4">
+						<img src="../../pub/transparency.png" alt="Filter 4">
+					</label>
+				</div>
+			</section>
 		</section>
+
+		<aside class="side-gallery">
+			<h3>Your Pictures</h3>
+			<div class="thumbnail-list">
+				<div class="thumbnail">
+					<img src="../../pub/test2.png" alt="My Creation 1">
+					<button class="delete-btn">Delete</button>
+				</div>
+				<div class="thumbnail">
+					<img src="../../pub/test2.png" alt="My Creation 2">
+					<button class="delete-btn">Delete</button>
+				</div>
+				<div class="thumbnail">
+					<img src="../../pub/test2.png" alt="My Creation 3">
+					<button class="delete-btn">Delete</button>
+				</div>
+			</div>
+		</aside>
 	</main>
 
 	<footer>
