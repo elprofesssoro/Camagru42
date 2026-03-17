@@ -7,6 +7,9 @@
 	<title>Log In</title>
 	<link rel="stylesheet" href="../styles/header.css">
 	<link rel="stylesheet" href="../styles/log.css">
+	<link rel="stylesheet" href="../styles/common.css">
+	<script src="../javascript/inputValidation.js" defer></script>
+	<script src="../javascript/log.js" defer></script>
 </head>
 
 <body>
@@ -23,9 +26,9 @@
 
 		<section>
 			<form action="login" method="get" id="login">
-				<input type="email" name="email" placeholder="your@email.com">
-				<input type="password" name="password" placeholder="Password">
-				<button type="submit">Log In</button>
+				<input type="text" name="credentials" placeholder="email or username" id="inputCred" required>
+				<input type="password" name="password" placeholder="Password (nums,low up case)" id="inputPassword" required>
+				<button type="submit" id="buttonLog">Log In</button>
 				<a href="forpass.html">Forgot password</a>
 			</form>
 			<section id="forgotPass">
