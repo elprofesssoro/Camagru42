@@ -18,11 +18,12 @@ main h1 {
 	font-family: 'Space Grotesk', sans-serif;
 	text-transform: uppercase;
 	letter-spacing: 2px;
-	text-align: left;
 	font-size: 50px;
+	width: 300px;          /* match form width */
+    text-align: left;  
 }
 
-main #login {
+main form {
 	margin-bottom: 10%;
 	display: flex;
 	flex-direction: column;
@@ -30,7 +31,7 @@ main #login {
 	width: 300px;
 }
 
-main input {
+main form input {
 	background: transparent;
 	border: 1px solid #8E95A3;
 	color: rgb(103, 1, 59);
