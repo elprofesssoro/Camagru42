@@ -5,19 +5,22 @@
 <head>
 	<meta charset="UTF-8" />
 	<title>Register</title>
+	<link rel="stylesheet" href="../styles/common.css">
+	<script src="../javascript/inputValidation.js" defer></script>
+	<script src="../javascript/register.js" defer></script>
 </head>
 
 <body>
 	<header>
 		<h1>Register</h1>
 	</header>
-	
+
 	<main>
 		<section>
 			<form action="register" method="post">
-				<input type="email" name="email" placeholder="your@email.com" required>
-				<input type="text" name="username" placeholder="bob.glasko" required>
-				<input type="password" name="password" placeholder="Password" required>
+				<input type="email" name="email" placeholder="your@email.com" id="inputEmail" required>
+				<input type="text" name="username" placeholder="bob.glasko" id="inputName" required>
+				<input type="password" name="password" placeholder="Password" id="inputPassword" required>
 				<p>Password strength: </p>
 				<button type="submit">Register</button>
 			</form>
