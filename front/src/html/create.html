@@ -7,6 +7,7 @@
 	<link rel="stylesheet" href="../styles/header.css">
 	<link rel="stylesheet" href="../styles/create.css">
 	<link rel="stylesheet" href="../styles/footer.css">
+	<script src="../javascript/create.js" defer></script>
 </head>
 
 <body>
@@ -25,16 +26,18 @@
 			<h1>Take an image</h1>
 			<div class="camera-wrapper">
 				<div class="camera-feed">
-					<img src="../../pub/test.jpg" alt="Camera Feed" id="video-feed">
+					<video id="video-feed" autoplay>Video stream is not available</video>
 					<div id="overlay-layer"></div>
 				</div>
 
 				<div class="controls-area">
 					<button id="capture-btn" disabled>Capture</button>
+					<button id="post-btn" disabled>Post</button>
 					<div class="upload-wrapper">
 						<label for="upload-file" class="upload-label">Upload image</label>
 						<input type="file" id="upload-file" accept="image/*">
 					</div>
+					<button id="reset-btn">Reset</button>
 				</div>
 			</div>
 
