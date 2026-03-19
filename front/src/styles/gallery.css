@@ -6,13 +6,15 @@ main h1 {
 	font-weight: 700;
 	letter-spacing: 4px;
 	color: #F4F4F6;
+	font-size: 70px;
 }
 
 .posts-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: 24px;
+	grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+	gap: 30px 100px;
 	padding: 20px 5%;
+	justify-items: center;
 }
 
 .post {
@@ -21,6 +23,17 @@ main h1 {
 	padding: 16px;
 	background: #0A0A0C;
 	position: relative;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	max-width: 500px;
+	margin: 15px auto;
+	transform-origin: center;
+	transition: all 0.2s ease-out;
+}
+
+.post:hover {
+	transform: scale(1.02);
 }
 
 .post::after {
@@ -48,7 +61,8 @@ main h1 {
 
 .imagePost {
 	width: 100%;
-	height: auto;
+	aspect-ratio: 1 / 1;
+	object-fit: cover;
 	display: block;
 	border-radius: 0;
 	border: 1px solid #333;
@@ -56,11 +70,12 @@ main h1 {
 
 .buttonPost {
 	padding-top: 16px;
+	margin-top: auto;
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
+	align-items: stretch;
 	gap: 10px;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 }
 
 .buttonPost>button {
@@ -68,13 +83,33 @@ main h1 {
 	color: #0A0A0C;
 	border: none;
 	border-radius: 0;
-	padding: 8px 24px;
+	padding: 8px 16px 8px 8px;
 	font-family: 'Space Grotesk', sans-serif;
 	font-weight: 700;
 	text-transform: uppercase;
 	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 120px;
+	box-sizing: border-box;
 	transition: all 0.15s ease-out;
+}
 
+.buttonPost>button p {
+	margin: 0;
+}
+
+.buttonPost #countLikes {
+	text-align: left;
+	font-family: 'Roboto Mono', monospace;
+	font-weight: 500;
+	font-size: 1.1em;
+}
+
+.buttonPost #textLikes {
+	text-align: right;
+	flex-grow: 1;
 }
 
 .buttonPost>button:hover {
@@ -84,7 +119,7 @@ main h1 {
 
 .buttonPost form {
 	display: flex;
-	align-items: center;
+	align-items: stretch;
 	gap: 0;
 	margin: 0;
 	flex-grow: 1;
@@ -160,7 +195,8 @@ main h1 {
 }
 
 #pagesBox {
-	margin-top: 20px;
+	margin-top: 10px;
+	margin-bottom: 3%;
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -187,4 +223,16 @@ main h1 {
 	cursor: pointer;
 	transform: scale(1.05);
 	box-shadow: 0 0 10px rgba(212, 255, 0, 0.2);
+}
+
+#pages button:disabled {
+	background: #0A0A0C;
+	color: #8E95A3;
+	border-color: #4A4D54;
+	cursor: not-allowed;
+	transform: scale(1);
+}
+
+#temp {
+	position: absolute;
 }
