@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<title>Log In</title>
+	<link rel="stylesheet" href="../styles/header.css">
+	<link rel="stylesheet" href="../styles/log.css">
+	<link rel="stylesheet" href="../styles/common.css">
+	<script src="../javascript/inputValidation.js" defer></script>
+	<script src="../javascript/log.js" defer></script>
+</head>
+
+<body>
+	<header>
+		<span>
+			<h1>Camagru</h1>
+			<nav>
+				<a href="gallery.html">Gallery</a>
+			</nav>
+		</span>
+	</header>
+	<main>
+		<h1>Log In:</h1>
+
+		<section>
+			<form action="login" method="get" id="login">
+				<input type="text" name="credentials" placeholder="email or username" id="inputCred" required>
+				<input type="password" name="password" placeholder="Password (nums,low up case)" id="inputPassword" required>
+				<button type="submit" id="buttonLog">Log In</button>
+				<a href="forpass.html">Forgot password</a>
+			</form>
+			<section id="forgotPass">
+				<p>Not registered?</p>
+				<a href="register.html">Create a new account</a>
+			</section>
+		</section>
+
+	</main>
+</body>

@@ -248,24 +248,24 @@
 	z-index: 10;
 }
 
-.thumbnail-list {
+.creations-list {
 	display: flex;
 	flex-direction: column;
 	gap: 15px;
 }
 
-.thumbnail {
+.creation {
 	position: relative;
 	border: 1px solid #333;
 	padding: 10px;
 	transition: border-color 0.2s;
 }
 
-.thumbnail:hover {
+.creation:hover {
 	border-color: #8E95A3;
 }
 
-.thumbnail img {
+.creation img {
 	width: 100%;
 	height: auto;
 	display: block;

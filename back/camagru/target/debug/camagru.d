@@ -1,1 +1,1 @@
-/Users/illia/Development/Canagru42/back/camagru/target/debug/camagru: /Users/illia/Development/Canagru42/back/camagru/src/main.rs
+/home/idvinov/Documents/Advanced/CamagruGit/back/camagru/target/debug/camagru: /home/idvinov/Documents/Advanced/CamagruGit/back/camagru/src/main.rs /home/idvinov/Documents/Advanced/CamagruGit/back/camagru/src/server.rs

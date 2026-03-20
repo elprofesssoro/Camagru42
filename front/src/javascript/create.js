@@ -2,11 +2,12 @@ const postButton = document.querySelector("#post-btn");
 const fileInput = document.querySelector("#upload-file");
 const resetButton = document.querySelector("#reset-btn");
 const webcam = document.querySelector("#video-feed");
+const captureButton = document.querySelector("#capture-btn");
 
 fileInput.addEventListener("change", uploadImage);
 postButton.addEventListener("click", postImage);
 resetButton.addEventListener("click", resetImage);
-
+captureButton.addEventListener("click", captureImage);
 
 let isUploaded = false;
 let isStickered = false;
@@ -16,6 +17,7 @@ activateCamera();
 function activateCamera() {
 	navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
 		webcam.srcObject = stream;
+		captureButton.disabled = false;
 	}).catch((error) => {
 		console.error("Error accessing webcam:", error);
 	});
@@ -52,6 +54,11 @@ function resetImage() {
 	postButton.disabled = true;
 	isStickered = false;
 	isUploaded = false;
+	captureButton.disabled = false;
+}
+
+function captureImage(event) {
+	captureButton.disabled = true;
 }
 
 function postImage() {
@@ -99,6 +106,7 @@ function startDrag(e) {
 	e.preventDefault(); // Prevent default image dragging behavior
 	isDragging = true;
 	currentSticker.style.cursor = 'grabbing';
+	captureButton.disabled = true;
 
 	const rect = currentSticker.getBoundingClientRect();
 	offsetX = e.clientX - rect.left;
@@ -125,6 +133,16 @@ function drag(e) {
 function endDrag() {
 	isDragging = false;
 	if (currentSticker) currentSticker.style.cursor = 'grab';
+	captureButton.disabled = false;
 	document.removeEventListener('mousemove', drag);
 	document.removeEventListener('mouseup', endDrag);
 }
+
+
+const creations = document.querySelectorAll(".creation");
+
+creations.forEach((creation) => {
+	creation.addEventListener("click", () => {
+		console.log(creation.children[0].alt);
+	});
+});

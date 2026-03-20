@@ -1,0 +1,94 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "email": "alice@example.com",
+      "hashedPassword": "dummy_hash_123",
+      "username": "alice",
+      "isVerified": true,
+      "verificationToken": null,
+      "resetVerificationToken": null,
+      "resetExpirationToken": null,
+      "notifyComment": true
+    },
+    {
+      "id": 2,
+      "email": "bob@example.com",
+      "hashedPassword": "dummy_hash_456",
+      "username": "bob",
+      "isVerified": false,
+      "verificationToken": "abc-123-xyz",
+      "resetVerificationToken": null,
+      "resetExpirationToken": null,
+      "notifyComment": false
+    },
+    {
+      "id": 3,
+      "email": "roho@example.com",
+      "hashedPassword": "dummy_hash_789",
+      "username": "roho",
+      "isVerified": true,
+      "verificationToken": null,
+      "resetVerificationToken": "reset-789",
+      "resetExpirationToken": "2026-03-21T18:00:00Z",
+      "notifyComment": true
+    }
+  ],
+  "posts": [
+    {
+      "id": 101,
+      "user_id": 1,
+      "date": "2026-03-18T14:30:00Z",
+      "imagePath": "../../pub/test.jpg"
+    },
+    {
+      "id": 102,
+      "user_id": 3,
+      "date": "2026-03-19T09:15:00Z",
+      "imagePath": "../../pub/test2.png"
+    },
+    {
+      "id": 103,
+      "user_id": 3,
+      "date": "2026-03-20T11:45:00Z",
+      "imagePath": "../../pub/transparency.png"
+    }
+  ],
+  "likes": [
+    {
+      "id": 1001,
+      "post_id": 101,
+      "user_id": 2
+    },
+    {
+      "id": 1002,
+      "post_id": 101,
+      "user_id": 3
+    },
+    {
+      "id": 1003,
+      "post_id": 102,
+      "user_id": 1
+    }
+  ],
+  "comments": [
+    {
+      "id": 5001,
+      "post_id": 101,
+      "user_id": 2,
+      "text": "Great photo, Alice!"
+    },
+    {
+      "id": 5002,
+      "post_id": 101,
+      "user_id": 3,
+      "text": "Love the composition."
+    },
+    {
+      "id": 5003,
+      "post_id": 102,
+      "user_id": 1,
+      "text": "Amazing edits, roho!"
+    }
+  ]
+}
