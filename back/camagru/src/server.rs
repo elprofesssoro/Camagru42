@@ -1,5 +1,6 @@
 use std::{
     io::Error,
+	sync::Arc
 };
 
 use tokio::net::tcp::OwnedReadHalf;
@@ -9,13 +10,22 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use crate::request::{Response, Request, Status};
 use crate::routes::routing::route;
 
+pub struct AppState {
+	pub name: String,
+}
+
 pub async fn server() -> Result<(), Error> {
+	let state = AppState {
+		name: String::from("Some Name")
+	};
+	let shared_state = Arc::new(state);
     let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").await?;
 
 	loop {
 		let (stream, _) = listener.accept().await?;
+		let state_thread = Arc::clone(&shared_state);
 		tokio::spawn(async move{
-			if let Err(e) = handle_connection(stream).await {
+			if let Err(e) = handle_connection(stream, state_thread).await {
 				eprintln!("Error handling connection: {}", e);
 			}
 		});
@@ -24,10 +34,10 @@ pub async fn server() -> Result<(), Error> {
     Ok(())
 }
 
-async fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
+async fn handle_connection(mut stream: TcpStream, state: Arc<AppState>) -> Result<(), Error> {
 	let(reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
-
+	println!("{}", state.name);
     let request = match parse_request(&mut buf_reader).await {
         Some(request) => request,
         None => {
