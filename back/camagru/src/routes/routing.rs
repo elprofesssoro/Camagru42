@@ -10,10 +10,7 @@ pub async fn route(request: &Request) -> Response {
         }
         "POST" => {
             println!("Handling a POST request for path: {}", request.path);
-            match routing_post(&request) {
-                Some(body) => Response::json(body),
-                None => Response::empty(Status::NotFound),
-            }
+            routing_post(&request)
         }
         _ => {
             println!("Unknown or unsupported method: {}", request.method);
@@ -26,28 +23,36 @@ fn routing_get(request: &Request) -> Response {
     let route = match request.path.strip_prefix("/api/") {
         Some(route) => route,
         None => {
-            return None;
+            return Response::empty(Status::NotFound);
         }
     };
     let response = match route {
-        "login" => Some(controllers::user::log_in(request)),
-        _ => None,
+        "login" => Response::json(controllers::user::log_in(request)),
+        _ => Response::empty(Status::NotFound),
     };
     response
 }
 
-fn routing_post(request: &Request) -> Option<String> {
+fn routing_post(request: &Request) -> Response {
     let route = match request.path.strip_prefix("/api/") {
         Some(route) => route,
         None => {
-            return None;
+            return Response::empty(Status::NotFound);
         }
     };
 
     let response = match route {
-        "login" => Some(controllers::user::log_in(request)),
-        "register" => Some(controllers::user::register(request)),
-        _ => None,
+        "login" => {
+			controllers::user::log_in(request);
+			Response::empty(Status::Ok)
+		},
+        "register" => {
+			controllers::user::register(request);
+			Response::empty(Status::Ok)
+		},
+        _ =>  {
+			Response::empty(Status::NotFound)
+		},
     };
     response
 }

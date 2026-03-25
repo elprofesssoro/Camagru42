@@ -1,5 +1,4 @@
 use std::{
-    fs,
     io::Error,
 };
 
@@ -40,7 +39,7 @@ async fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
     };
 
     let response = route(&request).await;
-	
+
     writer.write_all(&response.to_http_response()).await?;
 	writer.flush().await?;
     Ok(())
