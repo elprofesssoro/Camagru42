@@ -1,31 +1,28 @@
-use crate::request::Request;
+use crate::request::{Request, Response, Status};
 use crate::controllers;
 
-pub fn route(request: &Request) -> String {
+pub async fn route(request: &Request) -> Response {
     println!("{:?}", request);
-    match request.method.as_str() {
+	match request.method.as_str() {
         "GET" => {
             println!("Handling a GET request for path: {}", request.path);
-            match routing_get(&request) {
-                Some(route) => route,
-                None => String::from("Not found"),
-            }
+          	routing_get(&request)
         }
         "POST" => {
             println!("Handling a POST request for path: {}", request.path);
             match routing_post(&request) {
-                Some(route) => route,
-                None => String::from("Not found"),
+                Some(body) => Response::json(body),
+                None => Response::empty(Status::NotFound),
             }
         }
         _ => {
             println!("Unknown or unsupported method: {}", request.method);
-            String::from("Method not supported")
+			Response::empty(Status::BadRequest)
         }
     }
 }
 
-fn routing_get(request: &Request) -> Option<String> {
+fn routing_get(request: &Request) -> Response {
     let route = match request.path.strip_prefix("/api/") {
         Some(route) => route,
         None => {

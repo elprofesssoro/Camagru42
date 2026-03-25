@@ -1,27 +1,35 @@
 use std::{
     fs,
-    io::{prelude::*, BufReader, Error},
-    net::{TcpListener, TcpStream},
+    io::Error,
 };
 
-use crate::request::Request;
+use tokio::net::tcp::OwnedReadHalf;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+use crate::request::{Response, Request, Status};
 use crate::routes::routing::route;
 
-pub fn server() -> Result<(), Error> {
-    // The ? operator unwraps the Ok value or returns the Err early
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080")?;
+pub async fn server() -> Result<(), Error> {
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").await?;
 
-    for stream in listener.incoming() {
-        handle_connection(stream?)?;
-    }
+	loop {
+		let (stream, _) = listener.accept().await?;
+		tokio::spawn(async move{
+			if let Err(e) = handle_connection(stream).await {
+				eprintln!("Error handling connection: {}", e);
+			}
+		});
+	}
 
     Ok(())
 }
 
-fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
-    let mut buf_reader = BufReader::new(&stream);
+async fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
+	let(reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
 
-    let request = match parse_request(&mut buf_reader) {
+    let request = match parse_request(&mut buf_reader).await {
         Some(request) => request,
         None => {
             return Err(Error::new(
@@ -31,21 +39,16 @@ fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
         }
     };
 
-    let response_body = route(&request);
-
-    let status_line: &str = "HTTP/1.1 200 OK";
-    let contents = fs::read_to_string("log.html")? + &response_body;
-    let length = contents.len();
-
-    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
-    stream.write_all(response.as_bytes())?;
+    let response = route(&request).await;
+	
+    writer.write_all(&response.to_http_response()).await?;
+	writer.flush().await?;
     Ok(())
 }
 
-fn parse_request(buf_reader: &mut BufReader<&TcpStream>) -> Option<Request> {
+async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Request> {
     let mut request_line = String::new();
-    buf_reader.read_line(&mut request_line).ok()?;
+    buf_reader.read_line(&mut request_line).await.ok()?;
 
     if request_line.is_empty() {
         return None;
@@ -59,8 +62,10 @@ fn parse_request(buf_reader: &mut BufReader<&TcpStream>) -> Option<Request> {
     let mut content_length = 0;
     let mut content_type: Option<String> = None;
 
-    for line in buf_reader.by_ref().lines() {
-        let line = line.ok()?;
+	let mut line = String::new();
+    loop {
+		line.clear();
+		buf_reader.read_line(&mut line).await.ok()?;
         let trimmed = line.trim();
 
         if trimmed.is_empty() {
@@ -84,12 +89,10 @@ fn parse_request(buf_reader: &mut BufReader<&TcpStream>) -> Option<Request> {
     }
 
     let mut body_bytes = vec![0; content_length];
-    buf_reader.read_exact(&mut body_bytes).ok()?;
-    let body = if body_bytes.is_empty() {
-        None
-    } else {
-        Some(body_bytes)
-    };
+	if (content_length > 0) {
+	    buf_reader.read_exact(&mut body_bytes).await.ok()?;
+	}
+    let body = if body_bytes.is_empty() { None } else { Some(body_bytes) };
 
     Some(Request {
         method,

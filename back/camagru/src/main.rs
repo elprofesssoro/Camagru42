@@ -5,8 +5,8 @@ mod routes;
 use server::server;
 use std::error::Error;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    println!("Hello, world!");
-    server()?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    server().await?;
     Ok(())
 }
