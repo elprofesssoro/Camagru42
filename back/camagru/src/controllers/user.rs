@@ -1,4 +1,4 @@
-use crate::request::Request;
+use crate::headers::Request;
 
 pub fn log_in(request: &Request) -> String{
     println!("Logging in...");

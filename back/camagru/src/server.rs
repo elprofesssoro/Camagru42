@@ -7,7 +7,7 @@ use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
-use crate::request::{Response, Request, Status};
+use crate::headers::{Response, Request, Status};
 use crate::routes::routing::route;
 
 pub struct AppState {
