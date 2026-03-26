@@ -68,6 +68,9 @@ pub fn register(request: &Request) -> Response{
 		Err(_) => return Response::empty(Status::BadRequest)
 	};
     println!("{:?}", res);
+	if (!validate_register_input(&res)) {
+		return Response::empty(Status::BadRequest);
+	}
     Response::empty(Status::Ok)
 }
 
@@ -77,6 +80,12 @@ fn validate_login_input(loginDto: &LoginDTO) -> bool {
 		return validate_email(loginDto.cred.as_str()) || validate_username(loginDto.cred.as_str());
 	}
 	false
+}
+
+fn validate_register_input(registerDto: &RegisterDTO) -> bool {
+	validate_email(registerDto.email.as_str())
+		&& validate_username(registerDto.username.as_str())
+		&& validate_password(registerDto.password.as_str())
 }
 
 fn validate_email(email: &str) -> bool {
@@ -91,7 +100,7 @@ fn validate_username(username: &str) -> bool {
 }
 
 fn validate_password(password: &str) -> bool {
-	if (password.len() < 5) {
+	if password.len() < 5 {
 		return false;
 	}
 	let has_uppercase = password.chars().any(|c| c.is_uppercase());

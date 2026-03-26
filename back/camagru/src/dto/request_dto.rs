@@ -10,6 +10,6 @@ pub struct LoginDTO {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RegisterDTO {
 	pub email: String,
+	pub username: String,
 	pub password: String,
-	pub username: String
 }
