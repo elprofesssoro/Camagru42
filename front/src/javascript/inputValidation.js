@@ -57,7 +57,7 @@ function validPass(password) {
 	const lower = /[a-z]/.test(password);
 	const number = /[0-9]/.test(password);
 	const passed = [length, upper, lower, number].filter(Boolean).length;
-	if (passed < 2) {
+	if (passed < 4) {
 		return "Invalid password format";
 	}
 

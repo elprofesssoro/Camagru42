@@ -13,8 +13,9 @@ pub enum Status {
    	Ok,                    // 200
     Created,               // 201
     BadRequest,            // 400
-    Unauthorized,          // 401
-    NotFound,              // 404
+    Unauthorized,		   // 401
+    NotFound,			   // 404
+	UnsupportedMediaType,  // 415
     InternalServerError,   // 500
 }
 
@@ -26,6 +27,7 @@ impl Status {
             Status::BadRequest => 400,
             Status::Unauthorized => 401,
             Status::NotFound => 404,
+			Status::UnsupportedMediaType => 415,
             Status::InternalServerError => 500,
 		}
 	}
@@ -36,6 +38,7 @@ impl Status {
             Status::BadRequest => "Bad Request",
             Status::Unauthorized => "Unauthorized",
             Status::NotFound => "Not Found",
+			Status::UnsupportedMediaType => "Unsupported Media Type",
             Status::InternalServerError => "Internal Server Error",
 		}
 	}

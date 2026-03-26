@@ -28,4 +28,14 @@ function register(event) {
 
 	console.log("Input is valid");
 
+	callApi("register", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify({ email, name, password })
+	}).then((data) => {
+		console.log(data);
+	});
+
 }

@@ -2,7 +2,7 @@
 
 document.querySelector("#buttonLog").addEventListener("click", logIn);
 
-function logIn(event) {
+async function logIn(event) {
 	event.preventDefault();
 	const cred = document.querySelector("#inputCred").value;
 	const password = document.querySelector("#inputPassword").value;
@@ -29,5 +29,18 @@ function logIn(event) {
 	}
 
 	console.log("Input is valid");
-
+	const response = await callApi("login", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify({ cred, password })
+	});
+	console.log(response);
+	if (response && response.ok) {
+		console.log("Login successful");
+		window.location.href = "gallery.html";
+	} else {
+		showPopup(response.message || "Login failed");
+	}
 }

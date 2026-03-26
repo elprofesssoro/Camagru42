@@ -2,6 +2,7 @@ mod controllers;
 mod headers;
 mod server;
 mod routes;
+mod dto;
 use server::server;
 use std::error::Error;
 

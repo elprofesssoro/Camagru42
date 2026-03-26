@@ -4,6 +4,9 @@ use crate::controllers;
 pub async fn route(request: &Request) -> Response {
     println!("{:?}", request);
 	match request.method.as_str() {
+		"OPTIONS" => {
+			Response::empty(Status::Ok)
+		},
         "GET" => {
             println!("Handling a GET request for path: {}", request.path);
           	routing_get(&request)
@@ -27,7 +30,9 @@ fn routing_get(request: &Request) -> Response {
         }
     };
     let response = match route {
-        "login" => Response::json(controllers::user::log_in(request)),
+        "login" => {
+			controllers::user::log_in_get(request)
+		},
         _ => Response::empty(Status::NotFound),
     };
     response
@@ -43,12 +48,10 @@ fn routing_post(request: &Request) -> Response {
 
     let response = match route {
         "login" => {
-			controllers::user::log_in(request);
-			Response::empty(Status::Ok)
+			controllers::user::log_in_post(request)
 		},
         "register" => {
-			controllers::user::register(request);
-			Response::empty(Status::Ok)
+			controllers::user::register(request)
 		},
         _ =>  {
 			Response::empty(Status::NotFound)
