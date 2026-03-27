@@ -9,11 +9,11 @@ pub async fn route(request: &Request) -> Response {
 		},
         "GET" => {
             println!("Handling a GET request for path: {}", request.path);
-          	routing_get(&request)
+          	routing_get(&request).await
         }
         "POST" => {
             println!("Handling a POST request for path: {}", request.path);
-            routing_post(&request)
+            routing_post(&request).await
         }
         _ => {
             println!("Unknown or unsupported method: {}", request.method);
@@ -22,7 +22,7 @@ pub async fn route(request: &Request) -> Response {
     }
 }
 
-fn routing_get(request: &Request) -> Response {
+async fn routing_get(request: &Request) -> Response {
     let route = match request.path.strip_prefix("/api/") {
         Some(route) => route,
         None => {
@@ -31,14 +31,17 @@ fn routing_get(request: &Request) -> Response {
     };
     let response = match route {
         "login" => {
-			controllers::user::log_in_get(request)
+			controllers::user::log_in_get(request).await
+		},
+		"gallery" => {
+            controllers::gallery::gallery(request).await
 		},
         _ => Response::empty(Status::NotFound),
     };
     response
 }
 
-fn routing_post(request: &Request) -> Response {
+async fn routing_post(request: &Request) -> Response {
     let route = match request.path.strip_prefix("/api/") {
         Some(route) => route,
         None => {
@@ -48,10 +51,10 @@ fn routing_post(request: &Request) -> Response {
 
     let response = match route {
         "login" => {
-			controllers::user::log_in_post(request)
+			controllers::user::log_in_post(request).await
 		},
         "register" => {
-			controllers::user::register(request)
+			controllers::user::register(request).await
 		},
         _ =>  {
 			Response::empty(Status::NotFound)

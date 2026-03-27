@@ -2,7 +2,7 @@ use crate::headers::{Request, Response, Status};
 use crate::dto::request_dto::{LoginDTO, RegisterDTO};
 use serde_json::from_slice;
 
-pub fn log_in_get(request: &Request) -> Response{
+pub async fn log_in_get(request: &Request) -> Response{
     let content_type = request.content_type.as_deref().unwrap_or("");
 
     if !content_type.starts_with("application/json") {
@@ -25,7 +25,7 @@ pub fn log_in_get(request: &Request) -> Response{
     Response::empty(Status::Ok)
 }
 
-pub fn log_in_post(request: &Request) -> Response{
+pub async fn log_in_post(request: &Request) -> Response{
 			println!("2OOK");
 
     let content_type = request.content_type.as_deref().unwrap_or("");
@@ -50,7 +50,7 @@ pub fn log_in_post(request: &Request) -> Response{
     Response::empty(Status::Ok)
 }
 
-pub fn register(request: &Request) -> Response{
+pub async fn register(request: &Request) -> Response{
 				println!("3OOK");
 
     let content_type = request.content_type.as_deref().unwrap_or("");

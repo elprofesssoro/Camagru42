@@ -103,9 +103,14 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
 	}
     let body = if body_bytes.is_empty() { None } else { Some(body_bytes) };
 
+	let (path, query) = match path.split_once('?') {
+	    Some((p, q)) => (p.to_string(), (!q.is_empty()).then(|| q.to_string())),
+	    None => (path, None),
+	};
     Some(Request {
         method,
         path,
+		query,
         version,
         body,
         content_length,

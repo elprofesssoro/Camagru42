@@ -2,6 +2,7 @@
 pub struct Request {
     pub method: String,
     pub path: String,
+	pub query: Option<String>,
     pub content_length: usize,
     pub content_type: Option<String>,
     pub version: String,
