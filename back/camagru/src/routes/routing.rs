@@ -56,6 +56,12 @@ async fn routing_post(request: &Request) -> Response {
         "register" => {
 			controllers::user::register(request).await
 		},
+		"gallery/like" => {
+			controllers::gallery::like(request).await
+		},
+		"gallery/comment" => {
+			controllers::gallery::comment(request).await
+		},
         _ =>  {
 			Response::empty(Status::NotFound)
 		},

@@ -2,14 +2,15 @@
 
 let popupAlive = false;
 
-function showPopup(message) {
+function showPopup(message, type, linkTo) {
 	if (popupAlive)
 		return;
 	const popup = document.createElement("div");
-	popup.className = "error-popup";
+	popup.className = type === "error" ? "error-popup" : "ok-popup";
 	popup.textContent = message;
 
-	const linkElement = document.querySelector("form");
+	const selector = (typeof linkTo === "string" && linkTo.trim() !== "") ? linkTo : "form";
+	const linkElement = document.querySelector(selector) || document.querySelector("form");
 	linkElement.after(popup);
 	popupAlive = true;
 	setTimeout(() => {

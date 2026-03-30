@@ -1,4 +1,4 @@
-use crate::dto::gallery_dto::{GalleryDTO, PaginatedGalleryDTO};
+use crate::dto::gallery_dto::{CommentDTO, GalleryDTO, PaginatedGalleryDTO};
 use crate::headers::{Request, Response, Status};
 
 pub async fn gallery(request: &Request) -> Response {
@@ -7,7 +7,7 @@ pub async fn gallery(request: &Request) -> Response {
         None => return Response::empty(Status::BadRequest),
     };
 
-    let (page, per_page) = match validate_query_input(query) {
+    let (page, per_page) = match validate_gallery_query(query) {
         Some((page, per_page)) => (page, per_page),
         None => return Response::empty(Status::BadRequest),
     };
@@ -25,6 +25,7 @@ pub async fn gallery(request: &Request) -> Response {
             author: format!("User {}", i),
             likes: i,
             image_path: String::from("/pub/test.jpg"),
+			post_id: i + 100
         };
         posts.push(post);
     }
@@ -40,7 +41,44 @@ pub async fn gallery(request: &Request) -> Response {
     respone
 }
 
-fn validate_query_input(query: &str) -> Option<(usize, usize)> {
+pub async fn like(request: &Request) -> Response {
+    let query = match request.query.as_ref() {
+        Some(query) => query,
+        None => return Response::empty(Status::BadRequest),
+    };
+
+	let (user_id, post_id) = match validate_like_query(query) {
+		Some((user_id, post_id)) => (user_id, post_id),
+		None => return Response::empty(Status::BadRequest)
+	};
+
+	println!("User_id: {:?}, Post_id: {:?}", user_id, post_id);
+	Response::empty(Status::Ok)
+}
+
+pub async fn comment(request: &Request) -> Response {
+	let query = match request.query.as_ref() {
+        Some(query) => query,
+        None => return Response::empty(Status::BadRequest),
+    };
+
+	let (user_id, post_id) = match validate_like_query(query) {
+		Some((user_id, post_id)) => (user_id, post_id),
+		None => return Response::empty(Status::BadRequest)
+	};
+	let body = match request.body.as_ref() {
+		Some(body) => body,
+		None => return Response::empty(Status::BadRequest)
+	};
+	let comment = match serde_json::from_slice::<CommentDTO>(body) {
+		Ok(res) => res,
+		Err(_) => return Response::empty(Status::BadRequest)
+	};
+	println!("Comment: {:?}", comment);
+	Response::empty(Status::Ok)
+}
+
+fn validate_gallery_query(query: &str) -> Option<(usize, usize)> {
     let params: Vec<&str> = query.split('&').collect();
     let mut page = None;
     let mut per_page = None;
@@ -63,3 +101,39 @@ fn validate_query_input(query: &str) -> Option<(usize, usize)> {
         None
     }
 }
+
+fn validate_like_query(query: &str) -> Option<(usize, usize)> {
+    let params: Vec<&str> = query.split('&').collect();
+    let mut user_id = None;
+    let mut post_id = None;
+
+    for param in params {
+        let mut key_value = param.splitn(2, '=');
+        let key = key_value.next().unwrap_or("");
+        let value = key_value.next().unwrap_or("");
+
+        match key {
+            "user_id" => user_id = value.parse::<usize>().ok(),
+            "post_id" => post_id = value.parse::<usize>().ok(),
+            _ => return None,
+        }
+    }
+
+    if let (Some(user_id), Some(post_id)) = (user_id, post_id) {
+        Some((user_id, post_id))
+    } else {
+        None
+    }
+}
+
+
+// fn validate_query(params: Vec<String>) -> Option<Vec<usize>> {
+// 	let mut key_value = param.splitn(2, '=');
+//     let key = key_value.next().unwrap_or("");
+//     let value = key_value.next().unwrap_or("");
+
+//     match key {
+//         "id" => page = value.parse::<usize>().ok(),
+//         _ => return None,
+//     }
+// }
