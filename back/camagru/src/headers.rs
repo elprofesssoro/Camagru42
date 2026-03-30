@@ -3,6 +3,7 @@ pub struct Request {
     pub method: String,
     pub path: String,
 	pub query: Option<String>,
+	pub cookie: Option<String>,
     pub content_length: usize,
     pub content_type: Option<String>,
     pub version: String,
@@ -53,28 +54,34 @@ impl Status {
 pub struct Response {
     pub status: Status,
 	pub content_type: Option<String>,
+	pub cookie: Option<String>,
     pub body: Option<Vec<u8>>,
 }
 
 impl Response {
-	fn new(status: Status, content_type: Option<&str>, body: Option<Vec<u8>>) -> Self {
+	fn new(status: Status, content_type: Option<&str>, body: Option<Vec<u8>>, cookie: Option<String>) -> Self {
         Response {
             status: status,
             content_type: content_type.map(|s| s.to_string()),
             body,
+			cookie
         }
     }
 
     pub fn json(body: String) -> Self {
-        Response::new(Status::Ok, Some("application/json"), Some(body.into_bytes()))
+        Response::new(Status::Ok, Some("application/json"), Some(body.into_bytes()), None)
     }
 
     pub fn html(body: String) -> Self {
-        Response::new(Status::Ok, Some("text/html"), Some(body.into_bytes()))
+        Response::new(Status::Ok, Some("text/html"), Some(body.into_bytes()), None)
     }
 
 	pub fn empty(status: Status) -> Self {
-        Response::new(status, None, None)
+        Response::new(status, None, None, None)
+    }
+
+	pub fn cookie(status: Status, cookie: String) -> Self {
+        Response::new(status, None, None, Some(cookie))
     }
 
     pub fn to_http_response(&self) -> Vec<u8> {
@@ -86,6 +93,10 @@ impl Response {
 			Some(ct)=> format!("Content-Type: {}\r\n", ct),
 			None => String::new(),
 		};
+		let cookie_header = match &self.cookie {
+			Some(cookie) => format!("Set-Cookie: session_id={:?}; HttpOnly; Secure; SameSite=Strict; Max-Age=86400\r\n", cookie),
+			None => String::new(),
+		};
         let headers = format!(
             "{}\r\n\
         	{}\
@@ -93,8 +104,9 @@ impl Response {
             Access-Control-Allow-Origin: *\r\n\
             Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE\r\n\
             Access-Control-Allow-Headers: Content-Type\r\n\
+			{}\
             \r\n",
-            self.status.status_line(), content_type_header, length
+            self.status.status_line(), content_type_header, length, cookie_header
         );
 
 		let mut response_bytes = headers.into_bytes();

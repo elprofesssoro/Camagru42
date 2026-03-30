@@ -1,6 +1,8 @@
 use crate::headers::{Request, Response, Status};
 use crate::dto::request_dto::{LoginDTO, RegisterDTO};
 use serde_json::from_slice;
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
 
 pub async fn log_in_get(request: &Request) -> Response{
     let content_type = request.content_type.as_deref().unwrap_or("");
@@ -47,7 +49,7 @@ pub async fn log_in_post(request: &Request) -> Response{
 	if (!validate_login_input(&res)) {
 		return Response::empty(Status::BadRequest);
 	}
-    Response::empty(Status::Ok)
+    Response::cookie(Status::Ok, generate_session_token())
 }
 
 pub async fn register(request: &Request) -> Response{
@@ -107,4 +109,14 @@ fn validate_password(password: &str) -> bool {
 	let has_lowercase = password.chars().any(|c| c.is_lowercase());
 	let has_digit = password.chars().any(|c| c.is_ascii_digit());
 	has_uppercase && has_lowercase && has_digit
+}
+
+fn generate_session_token() -> String {
+    let token: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(64)
+        .map(char::from)
+        .collect();
+        
+    token
 }

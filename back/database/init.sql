@@ -13,6 +13,13 @@ CREATE TABLE User (
 	notifyComment BOOLEAN DEFAULT TRUE
 );
 
+CREATE TABLE Sessions (
+    session_token VARCHAR(128) PRIMARY KEY,
+    user_id INT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES User(id) ON DELETE CASCADE
+);
+
 CREATE TABLE Post (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT REFERENCES User(id),

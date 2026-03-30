@@ -70,6 +70,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
 
     let mut content_length = 0;
     let mut content_type: Option<String> = None;
+	let mut cookie: Option<String> = None;
 
 	let mut line = String::new();
     loop {
@@ -95,6 +96,12 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
                 };
             }
         }
+        if trimmed.to_lowercase().starts_with("cookie:") {
+            if let Some(value) = trimmed.split(':').nth(1) {
+                cookie = Some(value.trim().to_string());
+            }
+        }
+
     }
 
     let mut body_bytes = vec![0; content_length];
@@ -115,5 +122,6 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         body,
         content_length,
         content_type,
+		cookie
     })
 }

@@ -39,8 +39,8 @@ async function logIn(event) {
 	console.log(response);
 	if (response && response.ok) {
 		console.log("Login successful");
-		window.location.href = "gallery.html";
+		//window.location.href = "gallery.html";
 	} else {
-		showPopup(response.message || "Login failed");
+		showPopup(response.message || "Login failed", "error");
 	}
 }
