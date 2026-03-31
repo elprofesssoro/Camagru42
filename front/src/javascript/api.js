@@ -1,7 +1,7 @@
 'use strict'
 
 async function callApi(path, options) {
-  const res = await fetch(`/api/${path}`, options);
+  const res = await fetch(`http://localhost:8080/api/${path}`, options);
 
   let data = null;
   const text = await res.text();

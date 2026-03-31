@@ -11,20 +11,62 @@ captureButton.addEventListener("click", captureImage);
 
 let isUploaded = false;
 let isStickered = false;
+let hasCapturedWithSticker = false;
+let captureLocked = false;
+
+const currentFrameCanvas = document.createElement('canvas');
+const previousFrameCanvas = document.createElement('canvas');
+const currentFrameCtx = currentFrameCanvas.getContext('2d');
+const previousFrameCtx = previousFrameCanvas.getContext('2d');
+let frameLoopStarted = false;
 
 activateCamera();
 
 function activateCamera() {
 	navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
 		webcam.srcObject = stream;
-		captureButton.disabled = false;
+		webcam.style.display = "block";
+		startFrameBuffering();
+		captureButton.disabled = captureLocked || !webcam.srcObject;
 	}).catch((error) => {
-		console.error("Error accessing webcam:", error);
+		console.error("Error accessinCag webcam:", error);
 	});
 }
 
+function startFrameBuffering() {
+	if (frameLoopStarted) return;
+	frameLoopStarted = true;
+
+	const tick = () => {
+		if (webcam.videoWidth > 0 && webcam.videoHeight > 0 && webcam.srcObject) {
+			if (currentFrameCanvas.width !== webcam.videoWidth || currentFrameCanvas.height !== webcam.videoHeight) {
+				currentFrameCanvas.width = webcam.videoWidth;
+				currentFrameCanvas.height = webcam.videoHeight;
+				previousFrameCanvas.width = webcam.videoWidth;
+				previousFrameCanvas.height = webcam.videoHeight;
+			}
+
+			previousFrameCtx.drawImage(currentFrameCanvas, 0, 0);
+			currentFrameCtx.drawImage(webcam, 0, 0, currentFrameCanvas.width, currentFrameCanvas.height);
+		}
+
+		if (typeof webcam.requestVideoFrameCallback === 'function') {
+			webcam.requestVideoFrameCallback(() => tick());
+		} else {
+			requestAnimationFrame(tick);
+		}
+	};
+
+	tick();
+}
+
 function uploadImage(event) {
-	resetImage()
+	clearEditorState();
+	hasCapturedWithSticker = false;
+	captureLocked = false;
+	postButton.disabled = true;
+	captureButton.disabled = true;
+
 	const file = event.target.files[0];
 	if (!file) return;
 
@@ -34,6 +76,8 @@ function uploadImage(event) {
 		webcam.srcObject = null;
 	}
 
+	webcam.style.display = "none";
+
 	const imageUrl = URL.createObjectURL(file);
 	const postHTML = `
         <div class="post">
@@ -42,28 +86,59 @@ function uploadImage(event) {
     `;
 	document.querySelector("#overlay-layer").insertAdjacentHTML('afterbegin', postHTML);
 	isUploaded = true;
+	postButton.disabled = !(isStickered && isUploaded);
 }
 
-function resetImage() {
-	const overlay = document.querySelector("#overlay-layer");
+function clearEditorState() {
 	overlay.innerHTML = "";
 	if (currentSticker) {
 		currentSticker.remove();
 		currentSticker = null;
 	}
-	postButton.disabled = true;
 	isStickered = false;
 	isUploaded = false;
+	hasCapturedWithSticker = false;
+}
+
+function resetImage() {
+	clearEditorState();
+	captureLocked = false;
+	postButton.disabled = true;
 	captureButton.disabled = false;
+	if (webcam.srcObject) {
+		const tracks = webcam.srcObject.getTracks();
+		tracks.forEach(track => track.stop());
+		webcam.srcObject = null;
+	}
+	activateCamera();
 }
 
 function captureImage(event) {
+	if (captureLocked) return;
+	if (!currentSticker) return;
+	if (!previousFrameCanvas.width || !previousFrameCanvas.height) return;
+
+	const oldPost = overlay.querySelector('.post');
+	if (oldPost) oldPost.remove();
+
+	const imageUrl = previousFrameCanvas.toDataURL('image/png');
+	const postHTML = `
+        <div class="post">
+            <img src="${imageUrl}" alt="Captured Image" style="max-width: 100%;">
+        </div>
+    `;
+	overlay.insertAdjacentHTML('afterbegin', postHTML);
+	isUploaded = true;
+	hasCapturedWithSticker = true;
+	captureLocked = true;
+	postButton.disabled = false;
 	captureButton.disabled = true;
 }
 
 function postImage() {
 	if (!currentSticker)
 		return;
+
 }
 
 const filters = document.querySelectorAll('input[name="filter"]');
@@ -93,10 +168,9 @@ filters.forEach(radio => {
 
 		overlay.appendChild(currentSticker);
 
-
 		isStickered = true;
-		if (isStickered && isUploaded) postButton.disabled = false;
-		else postButton.disabled = true;
+		hasCapturedWithSticker = false;
+		postButton.disabled = !(isStickered && isUploaded);
 
 		currentSticker.addEventListener('mousedown', startDrag);
 	});
@@ -107,7 +181,7 @@ function startDrag(e) {
 	isDragging = true;
 	currentSticker.style.cursor = 'grabbing';
 	captureButton.disabled = true;
-
+	postButton.disabled = true;
 	const rect = currentSticker.getBoundingClientRect();
 	offsetX = e.clientX - rect.left;
 	offsetY = e.clientY - rect.top;
@@ -133,7 +207,9 @@ function drag(e) {
 function endDrag() {
 	isDragging = false;
 	if (currentSticker) currentSticker.style.cursor = 'grab';
-	captureButton.disabled = false;
+	captureButton.disabled = captureLocked || !webcam.srcObject;
+	hasCapturedWithSticker = false;
+	postButton.disabled = !(isStickered && isUploaded);
 	document.removeEventListener('mousemove', drag);
 	document.removeEventListener('mouseup', endDrag);
 }
