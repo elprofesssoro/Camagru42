@@ -1,54 +1,55 @@
-CREATE DATABASE camagru;
-USE camagru;
-
-CREATE TABLE User (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    isVerified BOOLEAN DEFAULT FALSE,
-	verificationToken VARCHAR(255),
-	resetVerificationToken VARCHAR(255),
-	resetExpirationToken VARCHAR(255),
-	notifyComment BOOLEAN DEFAULT TRUE
+    is_verified BOOLEAN DEFAULT FALSE,
+    verification_token VARCHAR(255),
+    reset_verification_token VARCHAR(255),
+    reset_expiration_token VARCHAR(255),
+    notify_comment BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE Sessions (
+CREATE TABLE sessions (
     session_token VARCHAR(128) PRIMARY KEY,
     user_id INT NOT NULL,
-    expires_at DATETIME NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES User(id) ON DELETE CASCADE
+    expires_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE Post (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT REFERENCES User(id),
-	postDate DATE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	imagePath VARCHAR(255) NOT NULL UNIQUE
+CREATE TABLE posts (
+    id SERIAL PRIMARY KEY,
+    user_id INT,
+    post_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    image_path VARCHAR(255) NOT NULL UNIQUE,
+    CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE PostLike (
-   	PRIMARY KEY (user_id, post_id),
-    user_id INT REFERENCES User(id),
-	post_id INT REFERENCES Post(id),
+CREATE TABLE post_likes (
+    user_id INT NOT NULL,
+    post_id INT NOT NULL,
+    PRIMARY KEY (user_id, post_id),
+    CONSTRAINT fk_post_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_post_likes_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 
-CREATE TABLE Comment (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT REFERENCES User(id),
-	post_id INT REFERENCES Post(id),
-	comment VARCHAR(255) NOT NULL
+CREATE TABLE comments (
+    id SERIAL PRIMARY KEY,
+    user_id INT,
+    post_id INT,
+    comment VARCHAR(255) NOT NULL,
+    CONSTRAINT fk_comments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_comments_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 
-
-INSERT INTO User (username, email, password) VALUES
+INSERT INTO users (username, email, password) VALUES
 ('john_doe', 'john@example.com', 'password123'),
 ('jane_smith', 'jane@example.com', 'password456');
 
-INSERT INTO Post (user_id, postDate, imagePath) VALUES
+INSERT INTO posts (user_id, post_date, image_path) VALUES
 (1, '2023-01-01', 'path/to/image1.jpg'),
 (2, '2023-01-02', 'path/to/image2.jpg');
 
-INSERT INTO Comment (user_id, post_id, comment) VALUES
+INSERT INTO comments (user_id, post_id, comment) VALUES
 (1, 1, 'Great photo!'),
 (2, 2, 'Nice shot!');

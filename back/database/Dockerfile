@@ -1,1 +1,1 @@
-FROM mysql:8.0
+FROM postgres:16
