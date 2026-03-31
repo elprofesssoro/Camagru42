@@ -8,6 +8,7 @@ pub struct Request {
     pub content_type: Option<String>,
     pub version: String,
     pub body: Option<Vec<u8>>,
+	pub user_id: Option<i32>
 }
 
 #[derive(Debug)]

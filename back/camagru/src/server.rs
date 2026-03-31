@@ -19,7 +19,7 @@ pub async fn server() -> Result<(), Error> {
 		name: String::from("Some Name")
 	};
 	let shared_state = Arc::new(state);
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").await?;
+    let listener: TcpListener = TcpListener::bind("0.0.0.0:8080").await?;
 
 	loop {
 		let (stream, _) = listener.accept().await?;
@@ -83,13 +83,13 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         }
 
         if trimmed.to_lowercase().starts_with("content-length:") {
-            if let Some(value) = trimmed.split(':').nth(1) {
+            if let Some((_, value)) = trimmed.split_once(':') {
                 content_length = value.trim().parse::<usize>().unwrap_or(0);
             }
         }
 
         if trimmed.to_lowercase().starts_with("content-type:") {
-            if let Some(value) = trimmed.split(':').nth(1) {
+            if let Some((_, value)) = trimmed.split_once(':') {
                 content_type = match value.trim().to_string() {
                     content_type if !content_type.is_empty() => Some(content_type),
                     _ => None,
@@ -97,7 +97,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
             }
         }
         if trimmed.to_lowercase().starts_with("cookie:") {
-            if let Some(value) = trimmed.split(':').nth(1) {
+            if let Some((_, value)) = trimmed.split_once(':') {
                 cookie = Some(value.trim().to_string());
             }
         }
@@ -122,6 +122,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         body,
         content_length,
         content_type,
-		cookie
+		cookie,
+		user_id: None
     })
 }
