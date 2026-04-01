@@ -2,7 +2,7 @@ use crate::headers::{Request, Response, Status};
 use crate::controllers;
 
 pub async fn route(request: &Request) -> Response {
-    println!("{:?}", request);
+	if (request.content_length < 100) { println!("{:?}", request); }
 	match request.method.as_str() {
 		"OPTIONS" => {
 			Response::empty(Status::Ok)
@@ -35,6 +35,9 @@ async fn routing_get(request: &Request) -> Response {
 		},
 		"gallery" => {
             controllers::gallery::gallery(request).await
+		},
+		"create/history" => {
+			controllers::create::create_get(request).await
 		},
         _ => Response::empty(Status::NotFound),
     };

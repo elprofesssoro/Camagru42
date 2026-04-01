@@ -1,7 +1,7 @@
 use crate::headers::{Request, Response, Status};
-use crate::dto::create_dto::{CreatePostDTO};
+use crate::dto::create_dto::{CreatePostDTO, HistoryDTO};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use serde_json::from_slice;
+use serde_json::{from_slice, to_string};
 use image;
 
 pub async fn create_post(request: &Request) -> Response {
@@ -21,7 +21,7 @@ pub async fn create_post(request: &Request) -> Response {
 		Err(_) => return Response::empty(Status::BadRequest)
 	};
 	let image_str = payload.image.split_once(',').map(|(_, data)| data.to_string()).unwrap_or(payload.image);
-    let sticker_path = payload.sticker_path;
+    let sticker_name = payload.sticker_name;
     let (pos_x, pos_y, width, height) = (payload.pos_x, payload.pos_y, payload.width, payload.height);
 
     let process_result = tokio::task::spawn_blocking(move || {
@@ -32,19 +32,19 @@ pub async fn create_post(request: &Request) -> Response {
 
         let mut img = match image::load_from_memory(&image_bytes) {
             Ok(i) => i,
-            Err(_) => return Err(Status::BadRequest),
+            Err(_) => return Err(Status::Unauthorized),
         };
 
-        //let sticker_path = format!("pub/stickers/{}.png", sticker_path);
+        let sticker_path = format!("../../pub/stickers/{}", sticker_name);
         let sticker = match image::open(&sticker_path) {
             Ok(s) => s,
-            Err(_) => return Err(Status::BadRequest),
+            Err(_) => return Err(Status::NotFound),
         };
 
         let sticker = image::imageops::resize(&sticker, width, height, image::imageops::FilterType::Nearest);
         image::imageops::overlay(&mut img, &sticker, pos_x as i64, pos_y as i64);
 
-        let final_path = "pub/my_new_photo.png"; 
+        let final_path = "../../pub/posts/my_new_photo.png"; 
         if img.save(final_path).is_err() {
             return Err(Status::InternalServerError);
         }
@@ -61,4 +61,26 @@ pub async fn create_post(request: &Request) -> Response {
         Ok(Err(status)) => return Response::empty(status), 
         Err(_) => return Response::empty(Status::InternalServerError),
     }
+}
+
+
+pub async fn create_get(request: &Request) -> Response {
+	let mut history_posts = Vec::<HistoryDTO>::new();
+	
+	for i in 0..10 {
+		let post = HistoryDTO {
+			img_name: format!("my_new_photo.png"),
+			likes: i
+		};
+		history_posts.push(post)
+	};
+	match to_string(&history_posts){
+		Ok(json) => {
+			return Response::json(json)
+		},
+		Err(e) => {
+			println!("Error parsing to string history post: {:?}", e);
+			return Response::empty(Status::InternalServerError)
+		}
+	};
 }

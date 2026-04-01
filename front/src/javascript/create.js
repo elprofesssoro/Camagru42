@@ -20,7 +20,35 @@ const currentFrameCtx = currentFrameCanvas.getContext('2d');
 const previousFrameCtx = previousFrameCanvas.getContext('2d');
 let frameLoopStarted = false;
 
+updateHistory();
 activateCamera();
+
+function updateHistory() {
+	callApi("create/history").then((response) => {
+		if (response && response.ok && Array.isArray(response.data)) {
+			console.log("History loaded successfully:", response.data);
+			const historyContainer = document.querySelector(".creations-list");
+			if (!historyContainer) {
+				console.error("History container not found");
+				return;
+			}
+			historyContainer.innerHTML = "";
+			response.data.forEach((item) => {
+				const creationHTML = `
+					<div class="creation">
+						<img src="../pub/posts/${item.img_name}" alt="${item.img_name}">
+						<button class="delete-btn">Delete</button>
+					</div>
+				`;
+				historyContainer.insertAdjacentHTML('beforeend', creationHTML);
+			});
+		} else {
+			console.error("Failed to load history:", response);
+		}
+	}).catch((error) => {
+		console.error("Error fetching history:", error);
+	});
+}
 
 function activateCamera() {
 	navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
@@ -29,7 +57,7 @@ function activateCamera() {
 		startFrameBuffering();
 		captureButton.disabled = captureLocked || !webcam.srcObject;
 	}).catch((error) => {
-		console.error("Error accessinCag webcam:", error);
+		console.error("Error accessing webcam:", error);
 	});
 }
 
@@ -162,7 +190,7 @@ function postImage() {
 
 	const payload = {
 		image: "",
-		sticker_path: getStickerPath(currentSticker.src),
+		sticker_name: currentSticker.src.split('/').pop().split('.').slice(0, -1).join('.') + "."+ currentSticker.src.split('/').pop().split('.').pop(),
 		pos_x: Math.max(0, Math.round((stickerRect.left - imageRect.left) * scaleX)),
 		pos_y: Math.max(0, Math.round((stickerRect.top - imageRect.top) * scaleY)),
 		width: Math.max(1, Math.round(stickerRect.width * scaleX)),
@@ -187,19 +215,12 @@ function postImage() {
 			showPopup("Failed to post image.", "error");
 			postButton.disabled = !(isStickered && isUploaded);
 		}
+		updateHistory();
 	}).catch((error) => {
 		console.error("Failed to post image", error);
 		showPopup("Failed to post image.", "error");
 		postButton.disabled = !(isStickered && isUploaded);
 	});
-}
-
-function getStickerPath(src) {
-	try {
-		return new URL(src).pathname;
-	} catch (_) {
-		return src;
-	}
 }
 
 function toDataUrl(img) {
