@@ -1,6 +1,6 @@
 pub async fn auth_middleware(request: &mut Request) {
 	if let Some(session_token) = extract_session_token(request.cookie_header) {
-		//Find token in Database
+		println!("{:?}", session_token);
 	}
 } 
 

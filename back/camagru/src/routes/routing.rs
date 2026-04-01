@@ -63,7 +63,7 @@ async fn routing_post(request: &Request) -> Response {
 			controllers::gallery::comment(request).await
 		},
 		"create/post" => {
-			controllers::gallery::comment(request).await
+			controllers::create::create_post(request).await
 		},
         _ =>  {
 			Response::empty(Status::NotFound)

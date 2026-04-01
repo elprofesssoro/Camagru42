@@ -136,9 +136,99 @@ function captureImage(event) {
 }
 
 function postImage() {
-	if (!currentSticker)
+	if (!currentSticker || !isUploaded) {
+		showPopup("Add an image and a sticker before posting.", "error");
 		return;
+	}
 
+	const postImg = overlay.querySelector('.post img');
+	if (!postImg) {
+		showPopup("No image found to post.", "error");
+		return;
+	}
+
+	const imageRect = postImg.getBoundingClientRect();
+	const stickerRect = currentSticker.getBoundingClientRect();
+
+	if (!imageRect.width || !imageRect.height) {
+		showPopup("Image is not ready yet.", "error");
+		return;
+	}
+
+	const naturalWidth = postImg.naturalWidth || Math.round(imageRect.width);
+	const naturalHeight = postImg.naturalHeight || Math.round(imageRect.height);
+	const scaleX = naturalWidth / imageRect.width;
+	const scaleY = naturalHeight / imageRect.height;
+
+	const payload = {
+		image: "",
+		sticker_path: getStickerPath(currentSticker.src),
+		pos_x: Math.max(0, Math.round((stickerRect.left - imageRect.left) * scaleX)),
+		pos_y: Math.max(0, Math.round((stickerRect.top - imageRect.top) * scaleY)),
+		width: Math.max(1, Math.round(stickerRect.width * scaleX)),
+		height: Math.max(1, Math.round(stickerRect.height * scaleY))
+	};
+
+	postButton.disabled = true;
+
+	toDataUrl(postImg).then((imageDataUrl) => {
+		payload.image = imageDataUrl;
+		return callApi("create/post", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify(payload)
+		});
+	}).then((response) => {
+		if (response && response.ok) {
+			showPopup("Image posted successfully!", "ok");
+		} else {
+			showPopup("Failed to post image.", "error");
+			postButton.disabled = !(isStickered && isUploaded);
+		}
+	}).catch((error) => {
+		console.error("Failed to post image", error);
+		showPopup("Failed to post image.", "error");
+		postButton.disabled = !(isStickered && isUploaded);
+	});
+}
+
+function getStickerPath(src) {
+	try {
+		return new URL(src).pathname;
+	} catch (_) {
+		return src;
+	}
+}
+
+function toDataUrl(img) {
+	if (typeof img.src === "string" && img.src.startsWith("data:image/")) {
+		return Promise.resolve(img.src);
+	}
+
+	return new Promise((resolve, reject) => {
+		const convert = () => {
+			try {
+				const canvas = document.createElement("canvas");
+				canvas.width = img.naturalWidth || img.width;
+				canvas.height = img.naturalHeight || img.height;
+				const ctx = canvas.getContext("2d");
+				ctx.drawImage(img, 0, 0);
+				resolve(canvas.toDataURL("image/png"));
+			} catch (err) {
+				reject(err);
+			}
+		};
+
+		if (img.complete) {
+			convert();
+			return;
+		}
+
+		img.addEventListener("load", convert, { once: true });
+		img.addEventListener("error", () => reject(new Error("Image failed to load")), { once: true });
+	});
 }
 
 const filters = document.querySelectorAll('input[name="filter"]');
