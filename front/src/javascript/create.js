@@ -23,6 +23,29 @@ let frameLoopStarted = false;
 updateHistory();
 activateCamera();
 
+document.querySelector(".creations-list").addEventListener("click", (e) => {
+	if (!e.target.classList.contains("delete-btn")) {
+		return;
+	}
+	const creation = e.target.closest(".creation");
+	const postId = creation.dataset.postId;
+
+	callApi("create/delete?post_id=" + postId, { method: "DELETE" })
+		.then((response) => {
+			if (response && response.ok) {
+				creation.remove();
+				showPopup("Creation deleted successfully!", "ok");
+			} else {
+				showPopup("Failed to delete creation.", "error");
+			}
+		})
+		.catch((error) => {
+			console.error("Error deleting creation:", error);
+			showPopup("Failed to delete creation.", "error");
+		});
+
+});
+
 function updateHistory() {
 	callApi("create/history").then((response) => {
 		if (response && response.ok && Array.isArray(response.data)) {
@@ -35,7 +58,7 @@ function updateHistory() {
 			historyContainer.innerHTML = "";
 			response.data.forEach((item) => {
 				const creationHTML = `
-					<div class="creation">
+					<div class="creation" data-post-id="${item.post_id}">
 						<img src="../pub/posts/${item.img_name}" alt="${item.img_name}">
 						<button class="delete-btn">Delete</button>
 					</div>
@@ -190,7 +213,7 @@ function postImage() {
 
 	const payload = {
 		image: "",
-		sticker_name: currentSticker.src.split('/').pop().split('.').slice(0, -1).join('.') + "."+ currentSticker.src.split('/').pop().split('.').pop(),
+		sticker_name: currentSticker.src.split('/').pop().split('.').slice(0, -1).join('.') + "." + currentSticker.src.split('/').pop().split('.').pop(),
 		pos_x: Math.max(0, Math.round((stickerRect.left - imageRect.left) * scaleX)),
 		pos_y: Math.max(0, Math.round((stickerRect.top - imageRect.top) * scaleY)),
 		width: Math.max(1, Math.round(stickerRect.width * scaleX)),

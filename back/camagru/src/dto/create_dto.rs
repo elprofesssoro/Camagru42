@@ -14,4 +14,5 @@ pub struct CreatePostDTO {
 pub struct HistoryDTO {
 	pub img_name: String,
 	pub likes: i32,
+	pub post_id: i32
 }

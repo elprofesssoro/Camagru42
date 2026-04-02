@@ -7,7 +7,7 @@ use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
-use crate::headers::{Response, Request, Status};
+use crate::headers::Request;
 use crate::routes::routing::route;
 
 pub struct AppState {
@@ -105,7 +105,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
     }
 
     let mut body_bytes = vec![0; content_length];
-	if (content_length > 0) {
+    if content_length > 0 {
 	    buf_reader.read_exact(&mut body_bytes).await.ok()?;
 	}
     let body = if body_bytes.is_empty() { None } else { Some(body_bytes) };

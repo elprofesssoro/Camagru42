@@ -21,7 +21,7 @@ pub async fn log_in_get(request: &Request) -> Response{
 		Err(_) => return Response::empty(Status::BadRequest)
 	};
     println!("{:?}", res);
-	if (!validate_login_input(&res)) {
+	if !validate_login_input(&res) {
 		return Response::empty(Status::BadRequest);
 	}
     Response::empty(Status::Ok)
@@ -46,7 +46,7 @@ pub async fn log_in_post(request: &Request) -> Response{
 		Err(_) => return Response::empty(Status::NotFound)
 	};
     println!("{:?}", res);
-	if (!validate_login_input(&res)) {
+	if !validate_login_input(&res) {
 		return Response::empty(Status::BadRequest);
 	}
     Response::cookie(Status::Ok, generate_session_token())
@@ -70,7 +70,7 @@ pub async fn register(request: &Request) -> Response{
 		Err(_) => return Response::empty(Status::BadRequest)
 	};
     println!("{:?}", res);
-	if (!validate_register_input(&res)) {
+	if !validate_register_input(&res) {
 		return Response::empty(Status::BadRequest);
 	}
     Response::empty(Status::Ok)
@@ -78,7 +78,7 @@ pub async fn register(request: &Request) -> Response{
 
 
 fn validate_login_input(loginDto: &LoginDTO) -> bool {
-	if (validate_password(loginDto.password.as_str())) {
+	if validate_password(loginDto.password.as_str()) {
 		return validate_email(loginDto.cred.as_str()) || validate_username(loginDto.cred.as_str());
 	}
 	false

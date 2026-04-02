@@ -70,7 +70,8 @@ pub async fn create_get(request: &Request) -> Response {
 	for i in 0..10 {
 		let post = HistoryDTO {
 			img_name: format!("my_new_photo.png"),
-			likes: i
+			likes: i,
+			post_id: i
 		};
 		history_posts.push(post)
 	};
@@ -83,4 +84,30 @@ pub async fn create_get(request: &Request) -> Response {
 			return Response::empty(Status::InternalServerError)
 		}
 	};
+}
+
+pub async fn create_delete(request: &Request) -> Response {
+	let query = match request.query.as_ref() {
+		Some(query) => query,
+		None => return Response::empty(Status::BadRequest)
+	};
+	let post_id = match validate_delete_query(&query) {
+		Some(post_id) => post_id,
+		None => return Response::empty(Status::BadRequest)
+	};
+
+	println!("Deleting post {:?}", post_id);
+	Response::empty(Status::Ok)
+}
+
+
+pub fn validate_delete_query(query: &str) -> Option<i32> {
+    let mut key_value = query.splitn(2, '=');
+    let key = key_value.next().unwrap_or("");
+    let value = key_value.next().unwrap_or("");
+
+    match key {
+        "post_id" => value.parse::<i32>().ok(),
+        _ => return None,
+    }
 }
