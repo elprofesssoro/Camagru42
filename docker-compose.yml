@@ -50,8 +50,6 @@ services:
       dockerfile: Dockerfile
     container_name: camagru-frontend
     restart: unless-stopped
-    depends_on:
-      - backend
     volumes:
       - ./pub:/usr/share/nginx/html/pub:ro
     ports:

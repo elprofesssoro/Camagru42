@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct GalleryDTO {
 	pub author: String,
 	pub likes: usize,
-	pub image_path: String,
+	pub img_name: String,
 	pub post_id: usize
 }
 

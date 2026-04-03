@@ -23,7 +23,7 @@ pub async fn create_post(request: &Request) -> Response {
 	let image_str = payload.image.split_once(',').map(|(_, data)| data.to_string()).unwrap_or(payload.image);
     let sticker_name = payload.sticker_name;
     let (pos_x, pos_y, width, height) = (payload.pos_x, payload.pos_y, payload.width, payload.height);
-
+    let pub_path = request.pub_path.clone();
     let process_result = tokio::task::spawn_blocking(move || {
         let image_bytes = match STANDARD.decode(&image_str) {
             Ok(b) => b,
@@ -35,7 +35,7 @@ pub async fn create_post(request: &Request) -> Response {
             Err(_) => return Err(Status::Unauthorized),
         };
 
-        let sticker_path = format!("../../pub/stickers/{}", sticker_name);
+        let sticker_path = format!("{}/stickers/{}", pub_path, sticker_name);
         let sticker = match image::open(&sticker_path) {
             Ok(s) => s,
             Err(_) => return Err(Status::NotFound),
@@ -44,8 +44,9 @@ pub async fn create_post(request: &Request) -> Response {
         let sticker = image::imageops::resize(&sticker, width, height, image::imageops::FilterType::Nearest);
         image::imageops::overlay(&mut img, &sticker, pos_x as i64, pos_y as i64);
 
-        let final_path = "../../pub/posts/my_new_photo.png"; 
-        if img.save(final_path).is_err() {
+        let img_name = "photo.jpg";
+        let final_path = format!("{}/posts/{}", pub_path, img_name); 
+        if img.save(&final_path).is_err() {
             return Err(Status::InternalServerError);
         }
 

@@ -117,10 +117,9 @@ async function updatePagination() {
 	grid.innerHTML = "";
 
 	posts.forEach((post, index) => {
-		addPost(post.author, `../..${post.image_path}`, post.likes, post.post_id);
+		addPost(post.author, `/pub/posts/${post.img_name}`, post.likes, post.post_id);
 	});
 
-	console.log(`Rendered Page ${currentPage}. Showing items ${startIndex} to ${endIndex - 1}`);
 }
 
 function addPost(author, imageSrc, likes, postId) {
@@ -145,6 +144,7 @@ function addPost(author, imageSrc, likes, postId) {
 
 
 async function getPosts() {
+
 	const response = await callApi(`gallery?page=${currentPage}&per_page=${itemsPerPage}`, {
 		method: "GET",
 	});

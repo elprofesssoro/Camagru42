@@ -24,7 +24,7 @@ pub async fn gallery(request: &Request) -> Response {
         let post = GalleryDTO {
             author: format!("User {}", i),
             likes: i,
-            image_path: String::from("/pub/test.jpg"),
+            img_name: String::from("my_new_photo.png"),
 			post_id: i + 100
         };
         posts.push(post);
@@ -35,7 +35,11 @@ pub async fn gallery(request: &Request) -> Response {
     let json = serde_json::to_string(&response_data);
     let respone = match json {
         Ok(json) => Response::json(json),
-        Err(e) => Response::empty(Status::InternalServerError),
+        Err(e) => {
+            //TODO: Put it in File output
+            println!("Error in PaginatedGallery serialization: {:?}", e);
+            Response::empty(Status::InternalServerError)
+        }
     };
 
     respone

@@ -59,7 +59,7 @@ function updateHistory() {
 			response.data.forEach((item) => {
 				const creationHTML = `
 					<div class="creation" data-post-id="${item.post_id}">
-						<img src="../pub/posts/${item.img_name}" alt="${item.img_name}">
+						<img src="/pub/posts/${item.img_name}" alt="${item.img_name}">
 						<button class="delete-btn">Delete</button>
 					</div>
 				`;
@@ -275,7 +275,6 @@ function toDataUrl(img) {
 	});
 }
 
-const filters = document.querySelectorAll('input[name="filter"]');
 const overlay = document.querySelector("#overlay-layer");
 
 let currentSticker = null;
@@ -283,35 +282,73 @@ let isDragging = false;
 let offsetX = 0;
 let offsetY = 0;
 
-filters.forEach(radio => {
-	radio.addEventListener('change', (e) => {
-		if (currentSticker && currentSticker.parentElement) {
-			currentSticker.remove();
-		}
+function loadStickers() {
+	fetch('/pub/stickers/')
+		.then(response => {
+			if (!response.ok) throw new Error('Network response was not ok');
+			return response.json();
+		})
+		.then(files => {
+			const filterList = document.querySelector(".filter-list");
+			if (!filterList) return;
+			
+			filterList.innerHTML = ""; // Clear statically hardcoded filters
+			
+			files.forEach((file, index) => {
+				// Ensure it's a file, not a directory
+				if (file.type !== "file") return;
+				
+				const filename = file.name;
+				
+				const filterItem = `
+					<label class="filter-item">
+						<input type="radio" name="filter" value="sticker-${index}">
+						<img src="/pub/stickers/${filename}" alt="${filename}">
+					</label>
+				`;
+				filterList.insertAdjacentHTML('beforeend', filterItem);
+			});
 
-		const imgSrc = e.target.nextElementSibling.src;
-		currentSticker = document.createElement('img');
-		currentSticker.src = imgSrc;
-		currentSticker.draggable = false;
-		currentSticker.style.position = 'absolute';
-		currentSticker.style.left = '50px';
-		currentSticker.style.top = '50px';
-		currentSticker.style.cursor = 'grab';
-		currentSticker.style.maxWidth = '150px';
-		currentSticker.style.zIndex = '100';
+			bindFilterListeners();
+		})
+		.catch(error => console.error("Error fetching stickers:", error));
+}
 
-		overlay.appendChild(currentSticker);
+function bindFilterListeners() {
+	const filters = document.querySelectorAll('input[name="filter"]');
+	filters.forEach(radio => {
+		radio.addEventListener('change', (e) => {
+			if (currentSticker && currentSticker.parentElement) {
+				currentSticker.remove();
+			}
 
-		isStickered = true;
-		hasCapturedWithSticker = false;
-		postButton.disabled = !(isStickered && isUploaded);
+			const imgSrc = e.target.nextElementSibling.src;
+			currentSticker = document.createElement('img');
+			currentSticker.src = imgSrc;
+			currentSticker.draggable = false;
+			currentSticker.style.position = 'absolute';
+			currentSticker.style.left = '50px';
+			currentSticker.style.top = '50px';
+			currentSticker.style.cursor = 'grab';
+			currentSticker.style.maxWidth = '150px';
+			currentSticker.style.zIndex = '100';
 
-		currentSticker.addEventListener('mousedown', startDrag);
+			overlay.appendChild(currentSticker);
+
+			isStickered = true;
+			hasCapturedWithSticker = false;
+			postButton.disabled = !(isStickered && isUploaded);
+
+			currentSticker.addEventListener('mousedown', startDrag);
+		});
 	});
-});
+}
+
+// Call on load
+loadStickers();
 
 function startDrag(e) {
-	e.preventDefault(); // Prevent default image dragging behavior
+	e.preventDefault();
 	isDragging = true;
 	currentSticker.style.cursor = 'grabbing';
 	captureButton.disabled = true;
@@ -329,11 +366,9 @@ function drag(e) {
 
 	const containerRect = overlay.getBoundingClientRect();
 
-	// Calculate new position relative to the overlay container
 	let newX = e.clientX - containerRect.left - offsetX;
 	let newY = e.clientY - containerRect.top - offsetY;
 
-	// Apply new position
 	currentSticker.style.left = `${newX}px`;
 	currentSticker.style.top = `${newY}px`;
 }
