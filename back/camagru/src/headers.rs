@@ -18,8 +18,9 @@ pub enum Status {
     Created,               // 201
     BadRequest,            // 400
     Unauthorized,		   // 401
-    Forbidden,
+    Forbidden,             // 403
     NotFound,			   // 404
+    Conflict,              // 409
 	UnsupportedMediaType,  // 415
     InternalServerError,   // 500
 }
@@ -33,6 +34,7 @@ impl Status {
             Status::Unauthorized => 401,
             Status::Forbidden => 403,
             Status::NotFound => 404,
+            Status::Conflict => 409,
 			Status::UnsupportedMediaType => 415,
             Status::InternalServerError => 500,
 		}
@@ -45,6 +47,7 @@ impl Status {
             Status::Unauthorized => "Unauthorized",
             Status::Forbidden => "Forbidden",
             Status::NotFound => "Not Found",
+            Status::Conflict => "Conflict",
 			Status::UnsupportedMediaType => "Unsupported Media Type",
             Status::InternalServerError => "Internal Server Error",
 		}
@@ -120,4 +123,8 @@ impl Response {
 		}
 		response_bytes
 	}
+}
+
+pub fn log_error(context: &str, err: impl std::fmt::Display) {
+    eprintln!("[ERROR] {} - {}", context, err);
 }

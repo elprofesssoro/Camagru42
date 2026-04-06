@@ -63,7 +63,7 @@ async fn routing_post(request: &Request, state: &Arc<AppState>) -> Response {
 			controllers::user::log_in_post(request, state).await
 		},
         "register" => {
-			controllers::user::register(request).await
+			controllers::user::register(request, state).await
 		},
 		"gallery/like" => {
 			controllers::gallery::like(request).await

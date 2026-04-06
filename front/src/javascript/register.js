@@ -2,7 +2,7 @@
 
 document.querySelector("form").addEventListener("submit", register);
 
-function register(event) {
+async function register(event) {
 	event.preventDefault();
 	const email = document.querySelector("#inputEmail").value;
 	const username = document.querySelector("#inputName").value;
@@ -10,32 +10,43 @@ function register(event) {
 
 	const emailResult = validEmail(email);
 	if (emailResult !== "1") {
-		showPopup(emailResult);
+		showPopup(emailResult, "error");
 		return;
 	}
 
 	const nameResult = validUsername(username);
 	if (nameResult !== "1") {
-		showPopup(nameResult);
+		showPopup(nameResult, "error");
 		return;
 	}
 
 	const passResult = validPass(password);
 	if (passResult !== "1") {
-		showPopup(passResult);
+		showPopup(passResult, "error");
 		return;
 	}
 
 	console.log("Input is valid");
 
-	callApi("register", {
+	const respone = await callApi("register", {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json"
 		},
 		body: JSON.stringify({ email, username, password })
-	}).then((data) => {
-		console.log(data);
 	});
+	if (respone && respone.ok) {
+		console.log("Registration successful");
+		showPopup("Registration successful!", "success");
+		setTimeout(() => {
+			window.location.href = "econf.html";
+		}, 1000);
+	}
+	else if (respone.status === 409) {
+		showPopup("Email or username already exists", "error");
+	}
+	else {
+		showPopup("Registration failed", "error");
+	}
 
 }

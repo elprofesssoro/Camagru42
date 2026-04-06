@@ -12,3 +12,4 @@ rand = "0.8"
 base64 = "0.22.1"
 image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
 sqlx = {version = "0.8.6", features = ["postgres", "runtime-tokio-rustls"] }
+bcrypt = "0.15"

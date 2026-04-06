@@ -1,6 +1,7 @@
 use crate::dto::request_dto::{LoginDTO, RegisterDTO};
-use crate::headers::{Request, Response, Status};
+use crate::headers::{log_error, Request, Response, Status};
 use crate::server::AppState;
+use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde_json::from_slice;
@@ -50,7 +51,10 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
 
     let payload = match from_slice::<LoginDTO>(body) {
         Ok(payload) => payload,
-        Err(_) => return Response::empty(Status::NotFound),
+        Err(err) => {
+            log_error("Error deserializing slice", err);
+            return Response::empty(Status::NotFound);
+        }
     };
     println!("{:?}", payload);
     let valid = validate_login_input(&payload);
@@ -77,7 +81,7 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
             let db_password: String = row.get("password");
             let is_verified: bool = row.get("is_verified");
 
-			//TODO: Password hash verification
+            //TODO: Password hash verification
             if db_password != payload.password {
                 return Response::empty(Status::Unauthorized);
             }
@@ -98,7 +102,7 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
-pub async fn register(request: &Request) -> Response {
+pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
     let content_type = request.content_type.as_deref().unwrap_or("");
 
     if !content_type.starts_with("application/json") {
@@ -116,6 +120,32 @@ pub async fn register(request: &Request) -> Response {
     println!("{:?}", payload);
     if !validate_register_input(&payload) {
         return Response::empty(Status::BadRequest);
+    }
+    let hashed = match hash_password(&payload.password) {
+        Ok(hashed) => hashed,
+        Err(e) => {
+            log_error("Error hashing a password", e);
+            return Response::empty(Status::InternalServerError);
+        }
+    };
+
+    let q = "INSERT INTO users (email, username, password) VALUES ($1, $2, $3)";
+    let result = sqlx::query(&q)
+        .bind(&payload.email)
+        .bind(&payload.username)
+        .bind(&hashed)
+        .execute(&state.db)
+        .await;
+
+    match result {
+        Ok(_) => (),
+        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+            return Response::empty(Status::Conflict);
+        },
+        Err(e) => {
+            log_error("Error inserting user during registration", e);
+            return Response::empty(Status::InternalServerError);
+        }
     }
     Response::empty(Status::Ok)
 }
@@ -158,6 +188,11 @@ fn validate_password(password: &str) -> bool {
     let has_lowercase = password.chars().any(|c| c.is_lowercase());
     let has_digit = password.chars().any(|c| c.is_ascii_digit());
     has_uppercase && has_lowercase && has_digit
+}
+
+fn hash_password(password: &str) -> Result<String, bcrypt::BcryptError> {
+    let hashed = hash(password, DEFAULT_COST)?;
+    Ok(hashed)
 }
 
 fn generate_session_token() -> String {
