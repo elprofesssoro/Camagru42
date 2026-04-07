@@ -13,14 +13,14 @@ CREATE TABLE users (
 CREATE TABLE sessions (
     session_token VARCHAR(128) PRIMARY KEY,
     user_id INT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE posts (
     id SERIAL PRIMARY KEY,
     user_id INT,
-    post_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    post_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     image_path VARCHAR(255) NOT NULL UNIQUE,
     CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );

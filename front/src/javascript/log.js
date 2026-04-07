@@ -10,21 +10,21 @@ async function logIn(event) {
 	if (cred.includes("@")) {
 		const emailResult = validEmail(cred);
 		if (emailResult !== "1") {
-			showPopup(emailResult);
+			showPopup(emailResult, "error");
 			return;
 		}
 	}
 	else {
 		const usernameResult = validUsername(cred);
 		if (usernameResult !== "1") {
-			showPopup(usernameResult);
+			showPopup(usernameResult, "error");
 			return;
 		}
 	}
 
 	const passResult = validPass(password);
 	if (passResult !== "1") {
-		showPopup(passResult);
+		showPopup(passResult, "error");
 		return;
 	}
 

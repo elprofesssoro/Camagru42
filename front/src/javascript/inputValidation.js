@@ -25,7 +25,7 @@ function validEmail(email) {
 		return "Fill in all fields";
 	}
 
-	const emailRegex = /^[^.\s@]+@[^\s@]+\.[^\s@]+$/;
+	const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 	if (!emailRegex.test(email)) {
 		return "Invalid email format";
 	}

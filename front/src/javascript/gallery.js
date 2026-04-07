@@ -1,3 +1,41 @@
+async function checkAuthStatus() {
+	const response = await callApi("me", { method: "GET", cache: "no-store" });
+	return response && response.ok;
+}
+
+async function updateNavigation() {
+	const isLoggedIn = await checkAuthStatus();
+
+	const loginBtn = document.querySelector("#nav-login");
+	const logoutBtn = document.querySelector("#nav-logout");
+	const createBtn = document.querySelector("#nav-create");
+
+	if (isLoggedIn) {
+		if (loginBtn) loginBtn.classList.add("hidden");
+		if (logoutBtn) logoutBtn.classList.remove("hidden");
+		if (createBtn) createBtn.classList.remove("hidden");
+	} else {
+		if (loginBtn) loginBtn.classList.remove("hidden");
+		if (logoutBtn) logoutBtn.classList.add("hidden");
+		if (createBtn) createBtn.classList.add("hidden");
+	}
+}
+
+window.addEventListener("pageshow", () => {
+	updateNavigation();
+
+	const logoutBtn = document.querySelector("#nav-logout");
+	if (logoutBtn) {
+		logoutBtn.addEventListener("click", async () => {
+			const response = await callApi("logout", { method: "POST" });
+
+			if (response && response.ok) {
+				window.location.href = "log.html";
+			}
+		});
+	}
+});
+
 const pageSelect = document.querySelector("#page-select");
 const grid = document.querySelector(".posts-grid");
 const prevButton = document.querySelector("#pages button:first-of-type");
@@ -44,20 +82,24 @@ grid.addEventListener("click", async (e) => {
 		return;
 	}
 
- 	const postId = likeButton.closest('.post')?.dataset.postId;
- 	if (!postId) postId = 0;
-	 	const userId = 0;
- 	const response = await callApi(
- 	  'gallery/like?user_id=' + userId + '&post_id=' + postId,
- 	  { method: 'POST' }
- 	);
-   	if (response.ok) {
- 	  const likesCounter = likeButton.querySelector('.count-likes');
- 	  const currentLikes = Number(likesCounter?.textContent) || 0;
- 	  if (likesCounter) likesCounter.textContent = String(currentLikes + 1);
- 	}
+	const postId = likeButton.closest('.post')?.dataset.postId;
+	if (!postId) postId = 0;
+	const userId = 0;
+	const response = await callApi(
+		'gallery/like?user_id=' + userId + '&post_id=' + postId,
+		{ method: 'POST' }
+	);
+	if (response && response.status === 401) {
+		showPopup("You must be logged in to comment.", "error", ".post[data-post-id='" + postId + "'] form");
+		return;
+	}
+	if (response.ok) {
+		const likesCounter = likeButton.querySelector('.count-likes');
+		const currentLikes = Number(likesCounter?.textContent) || 0;
+		if (likesCounter) likesCounter.textContent = String(currentLikes + 1);
+	}
 	else {
-		showPopup("Failed to like the post. Please try again.", "error", ".post[data-post-id='" + postId + "'] form");	
+		showPopup("Failed to like the post. Please try again.", "error", ".post[data-post-id='" + postId + "'] form");
 	}
 });
 
@@ -90,10 +132,13 @@ grid.addEventListener("submit", async (e) => {
 			body: JSON.stringify({ comment: commentText })
 		}
 	);
-
+	if (response && response.status === 401) {
+		showPopup("You must be logged in to comment.", "error", ".post[data-post-id='" + postId + "'] form");
+		return;
+	}
 	if (response.ok) {
 		commentInput.value = "";
-		showPopup("Comment added successfully!", "ok", ".post[data-post-id='" + postId + "'] form");	
+		showPopup("Comment added successfully!", "ok", ".post[data-post-id='" + postId + "'] form");
 	}
 	else {
 		showPopup("Failed to add comment. Please try again.", "error", ".post[data-post-id='" + postId + "'] form");
@@ -124,21 +169,21 @@ async function updatePagination() {
 
 function addPost(author, imageSrc, likes, postId) {
 	const postHTML =
-    '<section class="post" data-post-id="' + postId + '">' +
-      '<h2>' + author + ' shared</h2>' +
-      '<img src="' + imageSrc + '" class="imagePost">' +
-      '<section class="buttonPost">' +
-        '<button type="button" class="like-btn">' +
-          '<p class="count-likes">' + likes + '</p>' +
-          '<p class="text-likes">Like</p>' +
-        '</button>' +
+		'<section class="post" data-post-id="' + postId + '">' +
+		'<h2>' + author + ' shared</h2>' +
+		'<img src="' + imageSrc + '" class="imagePost">' +
+		'<section class="buttonPost">' +
+		'<button type="button" class="like-btn">' +
+		'<p class="count-likes">' + likes + '</p>' +
+		'<p class="text-likes">Like</p>' +
+		'</button>' +
 		'<form action="/url" method="POST">' +
-			'<input type="text" name="comment" placeholder="Enter your comment">' +
-			'<button type="submit">Comment</button>' +
+		'<input type="text" name="comment" placeholder="Enter your comment">' +
+		'<button type="submit">Comment</button>' +
 		'</form>' +
-      '</section>' +
-    '</section>';
-	
+		'</section>' +
+		'</section>';
+
 	grid.insertAdjacentHTML('beforeend', postHTML);
 }
 

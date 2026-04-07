@@ -2,13 +2,17 @@ use crate::dto::request_dto::{LoginDTO, RegisterDTO};
 use crate::headers::{log_error, Request, Response, Status};
 use crate::server::AppState;
 use bcrypt::{hash, verify, DEFAULT_COST};
+use lettre::message::header::ContentType;
+use lettre::transport::smtp::authentication::Credentials;
+use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde_json::from_slice;
 use sqlx::Row;
+use std::env;
 use std::sync::Arc;
 
-pub async fn log_in_get(request: &Request, state: &Arc<AppState>) -> Response {
+pub async fn log_in_get(request: &Request) -> Response {
     let content_type = request.content_type.as_deref().unwrap_or("");
 
     if !content_type.starts_with("application/json") {
@@ -29,11 +33,11 @@ pub async fn log_in_get(request: &Request, state: &Arc<AppState>) -> Response {
     if valid == 0 {
         return Response::empty(Status::BadRequest);
     }
-    let search_by = match valid {
-        1 => "email",
-        2 => "username",
-        _ => return Response::empty(Status::BadRequest),
-    };
+    // let search_by = match valid {
+    //     1 => "email",
+    //     2 => "username",
+    //     _ => return Response::empty(Status::BadRequest),
+    // };
     Response::empty(Status::Ok)
 }
 
@@ -67,7 +71,7 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
         _ => return Response::empty(Status::BadRequest),
     };
     let q = format!(
-        "SELECT password, is_verified FROM users WHERE {} = $1",
+        "SELECT id, password, is_verified FROM users WHERE {} = $1",
         search_by
     );
 
@@ -76,30 +80,31 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
         .fetch_optional(&state.db)
         .await;
 
-    match result {
+    let (session, user_id) = match result {
         Ok(Some(row)) => {
             let db_password: String = row.get("password");
             let is_verified: bool = row.get("is_verified");
 
-            //TODO: Password hash verification
-            if db_password != payload.password {
+            if !verify_login(&payload.password, &db_password) {
                 return Response::empty(Status::Unauthorized);
             }
             println!("DB WAS RECEIVED: {}, {}", db_password, is_verified);
             if !is_verified {
                 return Response::empty(Status::Forbidden);
             }
-            Response::cookie(Status::Ok, generate_session_token())
+            let id: i32 = row.get("id");
+            (generate_token(), id)
         }
         Ok(None) => {
-            println!("User not found.");
-            Response::empty(Status::Unauthorized)
+            return Response::empty(Status::Unauthorized);
         }
         Err(e) => {
-            eprintln!("Database error: {}", e);
-            Response::empty(Status::InternalServerError)
+            log_error("Error saving user", e);
+            return Response::empty(Status::InternalServerError);
         }
-    }
+    };
+
+    session_token_insert(state, session, user_id).await
 }
 
 pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
@@ -128,26 +133,105 @@ pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
             return Response::empty(Status::InternalServerError);
         }
     };
-
-    let q = "INSERT INTO users (email, username, password) VALUES ($1, $2, $3)";
+    let v_token = generate_token();
+    let q =
+        "INSERT INTO users (email, username, password, verification_token) VALUES ($1, $2, $3, $4)";
     let result = sqlx::query(&q)
         .bind(&payload.email)
         .bind(&payload.username)
         .bind(&hashed)
+        .bind(&v_token)
         .execute(&state.db)
         .await;
 
     match result {
-        Ok(_) => (),
+        Ok(_) => {
+            let email = payload.email.clone();
+            let v_token = v_token.clone();
+
+            tokio::spawn(async move {
+                send_email(email, v_token).await;
+            });
+            Response::empty(Status::Ok)
+        }
         Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-            return Response::empty(Status::Conflict);
-        },
+            Response::empty(Status::Conflict)
+        }
         Err(e) => {
             log_error("Error inserting user during registration", e);
-            return Response::empty(Status::InternalServerError);
+            Response::empty(Status::InternalServerError)
         }
     }
-    Response::empty(Status::Ok)
+}
+
+pub async fn confirm(request: &Request, state: &Arc<AppState>) -> Response {
+    let query = match &request.query {
+        Some(query) => query,
+        None => return Response::redir("/error".to_string()),
+    };
+    let token = match token_query(&query) {
+        Some(token) => token,
+        None => return Response::redir("/error".to_string()),
+    };
+    let q = "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE verification_token = $1";
+    let result = sqlx::query(&q).bind(&token).execute(&state.db).await;
+    match result {
+        Ok(rows) => {
+            if rows.rows_affected() == 1 {
+                return Response::redir("/econf".to_string());
+            } else {
+                Response::redir("/error".to_string())
+            }
+        }
+        Err(e) => {
+            log_error("Database error verifying user", e);
+            Response::redir("/error".to_string())
+        }
+    }
+}
+
+pub async fn me(request: &Request) -> Response {
+    if request.user_id == None {
+        Response::empty(Status::Unauthorized)
+    }
+    else { 
+        Response::empty(Status::Ok)
+    }
+
+}
+
+async fn send_email(user_email: String, token: String) {
+    let verify_link = format!("http://localhost:80/api/verify?token={}", token);
+    let (username, password) = parse_env();
+
+    let email = Message::builder()
+        .from(
+            format!("Camagru Admin <{}>", username)
+                .parse()
+                .unwrap(),
+        )
+        .to(format!("<{}>", user_email).parse().unwrap())
+        .subject("Welcome to Camagru! Verify your account")
+        .header(ContentType::TEXT_PLAIN)
+        .body(format!(
+            "Please click the following link to verify your account: {}",
+            verify_link
+        ))
+        .unwrap();
+
+    println!("{}, {}", username, password);
+    let creds = Credentials::new(username, password);
+
+    let mailer: AsyncSmtpTransport<Tokio1Executor> =
+        AsyncSmtpTransport::<Tokio1Executor>::relay("smtp.gmail.com")
+            .unwrap()
+            .credentials(creds)
+            .build();
+
+    match mailer.send(email).await {
+        Ok(_) => println!("Email sent successfully!"),
+        Err(e) => eprintln!("Could not send email: {:?}", e),
+    }
 }
 
 fn validate_login_input(login_dto: &LoginDTO) -> u8 {
@@ -195,7 +279,15 @@ fn hash_password(password: &str) -> Result<String, bcrypt::BcryptError> {
     Ok(hashed)
 }
 
-fn generate_session_token() -> String {
+fn verify_login(password: &str, hash: &str) -> bool {
+    println!("Verifying: {} against {}", password, hash);
+    match verify(password, hash) {
+        Ok(is_valid) => is_valid,
+        Err(_) => false,
+    }
+}
+
+fn generate_token() -> String {
     let token: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(64)
@@ -203,4 +295,43 @@ fn generate_session_token() -> String {
         .collect();
 
     token
+}
+
+async fn session_token_insert(state: &Arc<AppState>, session: String, user_id: i32) -> Response {
+    let q = "INSERT INTO sessions (session_token, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '5 minutes')";
+    let result = sqlx::query(q)
+        .bind(&session)
+        .bind(&user_id)
+        .execute(&state.db)
+        .await;
+    match result {
+        Ok(_) => Response::cookie(Status::Ok, session),
+        Err(e) => {
+            log_error("Error saving session token", e);
+            Response::empty(Status::InternalServerError)
+        }
+    }
+}
+
+pub fn token_query(query: &str) -> Option<String> {
+    let mut key_value = query.splitn(2, '=');
+    let key = key_value.next().unwrap_or("");
+    let value = key_value.next().unwrap_or("");
+
+    match key {
+        "token" => Some(value.to_string()),
+        _ => return None,
+    }
+}
+
+fn parse_env() -> (String, String) {
+    let username = match env::var("EMAIL_HOST") {
+        Ok(str) => str,
+        Err(_) => "default@gmail.com".to_string(),
+    };
+    let password = match env::var("PASSWORD_HOST") {
+        Ok(str) => str,
+        Err(_) => "123345".to_string(),
+    };
+    (username, password)
 }

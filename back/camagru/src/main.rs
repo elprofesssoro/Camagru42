@@ -3,6 +3,7 @@ mod headers;
 mod server;
 mod routes;
 mod dto;
+mod middleware;
 use server::server;
 use std::error::Error;
 

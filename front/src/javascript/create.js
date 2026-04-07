@@ -1,3 +1,19 @@
+async function protectPage() {
+    // We can reuse the function from auth.js!
+    const isLoggedIn = await checkAuthStatus();
+    
+    if (!isLoggedIn) {
+        // KICK THEM OUT! Redirect to login page immediately.
+        window.location.href = "login.html";
+    } else {
+        // If they are logged in, remove the hidden class from the main content
+        // (Assuming you wrap your create form in <main id="create-content" class="hidden">)
+        document.querySelector("#create-content").classList.remove("hidden");
+    }
+}
+
+protectPage();
+
 const postButton = document.querySelector("#post-btn");
 const fileInput = document.querySelector("#upload-file");
 const resetButton = document.querySelector("#reset-btn");

@@ -4,18 +4,17 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::{TcpListener, TcpStream};
 
-use sqlx::{Connection, PgPool, Row};
+use sqlx::{PgPool};
 
 use crate::headers::Request;
 use crate::routes::routing::route;
 
 pub struct AppState {
-    pub name: String,
     pub db: PgPool,
 }
 
 pub async fn server() -> Result<(), Error> {
-  let mut conn = match connect_db().await {
+  let conn = match connect_db().await {
     Some(conn) => conn,
     None => {
         println!("Database connection was not established");
@@ -26,7 +25,6 @@ pub async fn server() -> Result<(), Error> {
     }
 };
     let state = AppState {
-        name: String::from("Some Name"),
         db: conn,
     };
     let shared_state = Arc::new(state);
@@ -46,7 +44,7 @@ pub async fn server() -> Result<(), Error> {
 async fn handle_connection(stream: TcpStream, state: Arc<AppState>) -> Result<(), Error> {
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
-    let request = match parse_request(&mut buf_reader).await {
+    let mut request = match parse_request(&mut buf_reader).await {
         Some(request) => request,
         None => {
             return Err(Error::new(
@@ -56,7 +54,7 @@ async fn handle_connection(stream: TcpStream, state: Arc<AppState>) -> Result<()
         }
     };
 
-    let response = route(&request, &state).await;
+    let response = route(&mut request, &state).await;
 
     writer.write_all(&response.to_http_response()).await?;
     writer.flush().await?;

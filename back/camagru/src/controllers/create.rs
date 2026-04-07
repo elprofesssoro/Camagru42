@@ -66,6 +66,10 @@ pub async fn create_post(request: &Request) -> Response {
 
 
 pub async fn create_get(request: &Request) -> Response {
+    let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
 	let mut history_posts = Vec::<HistoryDTO>::new();
 	
 	for i in 0..10 {
