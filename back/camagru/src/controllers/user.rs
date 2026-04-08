@@ -107,6 +107,23 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
     session_token_insert(state, session, user_id).await
 }
 
+pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
+    if request.user_id == None {
+        return Response::empty(Status::Unauthorized);
+    }
+    let q = "DELETE FROM sessions WHERE user_id = $1";
+    let result = sqlx::query(q).bind(&request.user_id).execute(&state.db).await;
+    match result {
+        Ok(_) => {
+            Response::cookie(Status::Ok, String::new())
+        },
+        Err(err) => {
+            log_error("Database error deleting session token (log_out)", err);
+            Response::empty(Status::InternalServerError)
+        },
+    }
+}
+
 pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
     let content_type = request.content_type.as_deref().unwrap_or("");
 
@@ -193,11 +210,9 @@ pub async fn confirm(request: &Request, state: &Arc<AppState>) -> Response {
 pub async fn me(request: &Request) -> Response {
     if request.user_id == None {
         Response::empty(Status::Unauthorized)
-    }
-    else { 
+    } else {
         Response::empty(Status::Ok)
     }
-
 }
 
 async fn send_email(user_email: String, token: String) {
@@ -205,11 +220,7 @@ async fn send_email(user_email: String, token: String) {
     let (username, password) = parse_env();
 
     let email = Message::builder()
-        .from(
-            format!("Camagru Admin <{}>", username)
-                .parse()
-                .unwrap(),
-        )
+        .from(format!("Camagru Admin <{}>", username).parse().unwrap())
         .to(format!("<{}>", user_email).parse().unwrap())
         .subject("Welcome to Camagru! Verify your account")
         .header(ContentType::TEXT_PLAIN)

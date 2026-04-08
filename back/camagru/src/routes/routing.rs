@@ -64,14 +64,18 @@ async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response 
 
     let response = match route {
         "login" => controllers::user::log_in_post(request, state).await,
+        "logout" => {
+            request.user_id = auth_middleware(request, state).await;
+            controllers::user::log_out(request, state).await
+        },
         "register" => controllers::user::register(request, state).await,
         "gallery/like" => {
             request.user_id = auth_middleware(request, state).await;
-            controllers::gallery::like(request).await
+            controllers::gallery::like(request, state).await
         }
         "gallery/comment" => {
             request.user_id = auth_middleware(request, state).await;
-            controllers::gallery::comment(request).await
+            controllers::gallery::comment(request, state).await
         }
         "create/post" => {
             request.user_id = auth_middleware(request, state).await;

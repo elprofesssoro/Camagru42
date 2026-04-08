@@ -1,4 +1,3 @@
-use std::fmt::format;
 
 #[derive(Debug)]
 pub struct Request {
@@ -8,7 +7,7 @@ pub struct Request {
     pub cookie: Option<String>,
     pub content_length: usize,
     pub content_type: Option<String>,
-    pub version: String,
+    pub _version: String,
     pub body: Option<Vec<u8>>,
     pub user_id: Option<i32>,
     pub pub_path: String,

@@ -128,7 +128,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         method,
         path,
         query,
-        version,
+        _version: version,
         body,
         content_length,
         content_type,
