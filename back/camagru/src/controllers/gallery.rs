@@ -8,7 +8,7 @@ use sqlx;
 use std::env;
 use std::sync::Arc;
 
-pub async fn gallery(request: &Request) -> Response {
+pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
     let query = match request.query.as_ref() {
         Some(query) => query,
         None => return Response::empty(Status::BadRequest),
@@ -18,37 +18,71 @@ pub async fn gallery(request: &Request) -> Response {
         Some((page, per_page)) => (page, per_page),
         None => return Response::empty(Status::BadRequest),
     };
+
     println!("Page: {}, Per Page: {}", page, per_page);
     let mut posts: Vec<GalleryDTO> = Vec::new();
 
     let total_posts: usize = 200;
-    let safe_per_page = if per_page > 50 { 50 } else { per_page };
-    let current_page = if page == 0 { 1 } else { page };
+    let safe_per_page = if per_page > 50 { 50 } else { per_page } as i64;
+    let current_page = if page == 0 { 1 } else { page  } as i64;
+	let offset = (current_page - 1) * safe_per_page;
 
-    let start_index = (current_page - 1) * safe_per_page;
-    let end_index = start_index + safe_per_page;
-    for i in start_index..end_index.min(total_posts) {
-        let post = GalleryDTO {
-            author: format!("User {}", i),
-            likes: i,
-            img_name: String::from("my_new_photo.png"),
-            post_id: i + 100,
-        };
-        posts.push(post);
-    }
+	let q = "SELECT COUNT(*) FROM posts";
+	let total_posts: i64 = match sqlx::query_scalar(q).fetch_one(&state.db).await {
+		Ok(count) => count,
+		Err(err) => {
+			log_error("Database error selecting amount of posts", err);
+			return Response::empty(Status::InternalServerError);
+		}
+	};
 
-    let response_data = PaginatedGalleryDTO { posts, total_posts };
+	let q = "
+		SELECT u.username AS author,
+			p.id AS post_id, 
+			p.image_path AS img_name,
+			(SELECT COUNT(*) FROM post_likes WHERE post_id = p.id) AS likes
+		FROM posts p
+		JOIN users u ON p.user_id = u.id
+		ORDER BY p.post_date DESC
+		LIMIT $1 OFFSET $2
+	";
+	let posts: Vec<GalleryDTO> = match sqlx::query_as::<_, GalleryDTO>(q)
+        .bind(safe_per_page)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await 
+    {
+        Ok(posts) => posts,
+        Err(e) => {
+            log_error("Database error fetching paginated posts", e);
+            return Response::empty(Status::InternalServerError);
+        }
+    };
 
-    let json = serde_json::to_string(&response_data);
-    let respone = match json {
+    // let start_index = (current_page - 1) * safe_per_page;
+    // let end_index = start_index + safe_per_page;
+    // for i in start_index..end_index.min(total_posts) {
+    //     let post = GalleryDTO {
+    //         author: format!("User {}", i),
+    //         likes: i,
+    //         img_name: String::from("my_new_photo.png"),
+    //         post_id: i + 100,
+    //     };
+    //     posts.push(post);
+    // }
+
+    let response_data = PaginatedGalleryDTO { 
+		posts, 
+		total_posts: total_posts as usize 
+	};
+
+    match serde_json::to_string(&response_data) {
         Ok(json) => Response::json(json),
         Err(e) => {
             log_error("Error in PaginatedGallery serialization", e);
             Response::empty(Status::InternalServerError)
         }
-    };
-
-    respone
+    }
 }
 
 pub async fn like(request: &Request, state: &Arc<AppState>) -> Response {

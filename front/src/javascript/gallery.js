@@ -1,10 +1,5 @@
-async function checkAuthStatus() {
-	const response = await callApi("me", { method: "GET", cache: "no-store" });
-	return response && response.ok;
-}
-
 async function updateNavigation() {
-	const isLoggedIn = await checkAuthStatus();
+
 
 	const loginBtn = document.querySelector("#nav-login");
 	const logoutBtn = document.querySelector("#nav-logout");
@@ -21,7 +16,8 @@ async function updateNavigation() {
 	}
 }
 
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", async () => {
+	await initializeAuth();
 	updateNavigation();
 
 	const logoutBtn = document.querySelector("#nav-logout");
@@ -84,9 +80,12 @@ grid.addEventListener("click", async (e) => {
 
 	const postId = likeButton.closest('.post')?.dataset.postId;
 	if (!postId) postId = 0;
-	const userId = 0;
+	if (!getAuthStatus()) {
+		showPopup("You must be logged in to like a post.", "error", ".post[data-post-id='" + postId + "'] form");
+		return;
+	}
 	const response = await callApi(
-		'gallery/like?user_id=' + userId + '&post_id=' + postId,
+		'gallery/like?post_id=' + postId,
 		{ method: 'POST' }
 	);
 	if (response && response.status === 401) {
@@ -114,6 +113,10 @@ grid.addEventListener("submit", async (e) => {
 	const postId = commentForm.closest('.post')?.dataset.postId;
 	if (!postId) return;
 
+	if (!getAuthStatus()) {
+		showPopup("You must be logged in to comment.", "error", ".post[data-post-id='" + postId + "'] form");
+		return;
+	}
 	const commentInput = commentForm.querySelector('input[name="comment"]');
 	const commentText = commentInput ? commentInput.value : "";
 
@@ -194,7 +197,7 @@ async function getPosts() {
 		method: "GET",
 	});
 
-	if (response && response.data && response.data.success) {
+	if (response) {
 		console.log(response);
 	}
 

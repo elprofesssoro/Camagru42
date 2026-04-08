@@ -42,13 +42,13 @@ CREATE TABLE comments (
     CONSTRAINT fk_comments_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 
-INSERT INTO users (username, email, password, isVerified) VALUES
+INSERT INTO users (username, email, password, is_verified) VALUES
 ('john_doe', 'john@example.com', 'Password123', TRUE),
-('jane_smith', 'jane@example.com', 'Password456', FALSE);
+('jane_smith', 'jane@example.com', 'Password456', TRUE);
 
 INSERT INTO posts (user_id, post_date, image_path) VALUES
-(1, '2023-01-01', 'path/to/image1.jpg'),
-(2, '2023-01-02', 'path/to/image2.jpg');
+(1, '2023-01-01', 'test.jpg'),
+(2, '2023-01-02', 'test2.jpg');
 
 INSERT INTO comments (user_id, post_id, comment) VALUES
 (1, 1, 'Great photo!'),

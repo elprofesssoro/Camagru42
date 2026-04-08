@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, FromRow)]
 pub struct GalleryDTO {
 	pub author: String,
-	pub likes: usize,
+	pub likes: i64,
 	pub img_name: String,
-	pub post_id: usize
+	pub post_id: i32
 }
 
 #[derive(Deserialize, Serialize, Debug)]
