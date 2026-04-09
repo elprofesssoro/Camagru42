@@ -19,7 +19,7 @@ main h1 {
 	text-transform: uppercase;
 	letter-spacing: 2px;
 	font-size: 50px;
-	width: 300px;          /* match form width */
+	width: 300px;
     text-align: left;  
 }
 

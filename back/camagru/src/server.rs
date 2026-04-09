@@ -6,26 +6,34 @@ use tokio::net::{TcpListener, TcpStream};
 
 use sqlx::{PgPool};
 
-use crate::headers::Request;
+use crate::headers::{Request};
 use crate::routes::routing::route;
-
-pub struct AppState {
-    pub db: PgPool,
-}
+use crate::utils::{AppState, EmailConfig, log_error};
 
 pub async fn server() -> Result<(), Error> {
-  let conn = match connect_db().await {
-    Some(conn) => conn,
-    None => {
-        println!("Database connection was not established");
-        return Err(Error::new(
-            std::io::ErrorKind::ConnectionRefused,
-            "Database connection was not established",
-        ));
-    }
-};
+	let conn = match connect_db().await {
+	    Some(conn) => conn,
+	    None => {
+	        println!("Database connection was not established");
+	        return Err(Error::new(
+	            std::io::ErrorKind::ConnectionRefused,
+	            "Database connection was not established",
+	        ));
+	    }
+	};
+	let email_conf = match EmailConfig::get_env() {
+		Ok(conf) => conf,
+		Err(err) => {
+			log_error("Error parsing email configuration", err);
+			 return Err(Error::new(
+	            std::io::ErrorKind::ConnectionRefused,
+	            "Error parsing email configuration",
+	        ));
+		}
+	};
     let state = AppState {
         db: conn,
+		email_conf
     };
     let shared_state = Arc::new(state);
     let listener: TcpListener = TcpListener::bind("0.0.0.0:8080").await?;
@@ -124,6 +132,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         None => (path, None),
     };
     let public_dir = env::var("PUBLIC_DIR").unwrap_or_else(|_| "../../pub".to_string());
+
     Some(Request {
         method,
         path,

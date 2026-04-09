@@ -10,7 +10,7 @@ async function initializeAuth() {
 		const response = await callApi("me", { method: "GET", cache: "no-store" });
 		if (response.ok) {
 			isLoggedIn = true;
-			currentUser = await response.json();
+			currentUser = await response.data;
 		} else {
 			isLoggedIn = false;
 			currentUser = null;
@@ -18,6 +18,10 @@ async function initializeAuth() {
 	} catch (error) {
 		console.error("Auth check failed:", error);
 		isLoggedIn = false;
+		const response = await callApi("logout", { method: "POST" });
+		if (!response.ok) {
+			console.error("Failed to clear auth on server:", response);
+		}
 	} finally {
 		hasCheckedServer = true;
 	}

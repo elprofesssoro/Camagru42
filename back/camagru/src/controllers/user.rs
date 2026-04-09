@@ -1,6 +1,6 @@
-use crate::dto::request_dto::{LoginDTO, RegisterDTO};
-use crate::headers::{log_error, Request, Response, Status};
-use crate::server::AppState;
+use crate::dto::request_dto::{LoginDTO, RegisterDTO, ReEmailDTO};
+use crate::headers::{Request, Response, Status};
+use crate::utils::{AppState, EmailConfig, send_email, log_error};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
@@ -165,9 +165,9 @@ pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
         Ok(_) => {
             let email = payload.email.clone();
             let v_token = v_token.clone();
-
+			let email_conf = state.email_conf.clone();
             tokio::spawn(async move {
-                send_email(email, v_token).await;
+                prepare_email(email_conf, email, v_token).await;
             });
             Response::empty(Status::Ok)
         }
@@ -215,34 +215,65 @@ pub async fn me(request: &Request) -> Response {
     }
 }
 
-async fn send_email(user_email: String, token: String) {
-    let verify_link = format!("http://localhost:80/api/verify?token={}", token);
-    let (username, password) = parse_env();
+pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
+	let content_type = request.content_type.as_deref().unwrap_or("");
+    if !content_type.starts_with("application/json") {
+        return Response::empty(Status::UnsupportedMediaType);
+    }
 
-    let email = Message::builder()
-        .from(format!("Camagru Admin <{}>", username).parse().unwrap())
-        .to(format!("<{}>", user_email).parse().unwrap())
-        .subject("Welcome to Camagru! Verify your account")
-        .header(ContentType::TEXT_PLAIN)
-        .body(format!(
+    let body = match request.body.as_ref() {
+        Some(body) => body,
+        None => return Response::empty(Status::BadRequest),
+    };
+    let payload = match from_slice::<ReEmailDTO>(body) {
+        Ok(payload) => payload,
+        Err(_) => return Response::empty(Status::BadRequest),
+    };
+	let token = generate_token();
+    let q =
+        "UPDATE users 
+		SET verification_token = $1 
+		WHERE email = $2 AND is_verified = FALSE";
+    let result = sqlx::query(&q)
+		.bind(&token)
+        .bind(&payload.email)
+        .execute(&state.db)
+        .await;
+
+    match result {
+        Ok(res) => {		
+			if (res.rows_affected() == 0){ return Response::empty(Status::Ok); }
+			
+            let email = payload.email.clone();
+	        let token = token.clone();
+			let email_conf_clone = state.email_conf.clone();
+
+            tokio::spawn(async move {
+                prepare_email(email_conf_clone, email, token).await;
+            });
+            Response::empty(Status::Ok)
+        }
+        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+            Response::empty(Status::Conflict)
+        }
+        Err(e) => {
+            log_error("Error inserting user during registration", e);
+            Response::empty(Status::InternalServerError)
+        }
+	}
+}
+
+async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: String) {
+    let verify_link = format!("http://localhost:80/api/verify?token={}", token);
+    let (username, password) = (email_conf.get_email(), email_conf.get_pass());
+	let from = format!("Camagru Admin <{}>", username);
+	let to = format!("<{}>", recv_email);
+	let subject= "Welcome to Camagru! Verify your account".to_string();
+	let body = format!(
             "Please click the following link to verify your account: {}",
             verify_link
-        ))
-        .unwrap();
-
-    println!("{}, {}", username, password);
-    let creds = Credentials::new(username, password);
-
-    let mailer: AsyncSmtpTransport<Tokio1Executor> =
-        AsyncSmtpTransport::<Tokio1Executor>::relay("smtp.gmail.com")
-            .unwrap()
-            .credentials(creds)
-            .build();
-
-    match mailer.send(email).await {
-        Ok(_) => println!("Email sent successfully!"),
-        Err(e) => eprintln!("Could not send email: {:?}", e),
-    }
+        );
+	send_email(email_conf, from, to, subject, body).await
 }
 
 fn validate_login_input(login_dto: &LoginDTO) -> u8 {
@@ -335,14 +366,14 @@ pub fn token_query(query: &str) -> Option<String> {
     }
 }
 
-fn parse_env() -> (String, String) {
-    let username = match env::var("EMAIL_HOST") {
-        Ok(str) => str,
-        Err(_) => "default@gmail.com".to_string(),
-    };
-    let password = match env::var("PASSWORD_HOST") {
-        Ok(str) => str,
-        Err(_) => "123345".to_string(),
-    };
-    (username, password)
-}
+// fn parse_env() -> (String, String) {
+//     let username = match env::var("EMAIL_HOST") {
+//         Ok(str) => str,
+//         Err(_) => "default@gmail.com".to_string(),
+//     };
+//     let password = match env::var("PASSWORD_HOST") {
+//         Ok(str) => str,
+//         Err(_) => "123345".to_string(),
+//     };
+//     (username, password)
+// }

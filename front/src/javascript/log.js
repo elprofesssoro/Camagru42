@@ -6,7 +6,6 @@ async function logIn(event) {
 	event.preventDefault();
 	const cred = document.querySelector("#inputCred").value;
 	const password = document.querySelector("#inputPassword").value;
-
 	if (cred.includes("@")) {
 		const emailResult = validEmail(cred);
 		if (emailResult !== "1") {
@@ -42,10 +41,30 @@ async function logIn(event) {
 		window.location.href = "gallery.html";
 	} else {
 		if (response.status === 401) {
-			showPopup("Wrong credentials", "error");
+			showPopup("No account was found", "error");
 		}
 		else if (response.status === 403) {
-			showPopup("Account not verified", "error");
+			if (!cred.includes("@")) {
+				showPopup("Account is not verified. Enter your email to resend verification email", "error");
+				return;
+			}
+			const respone = await callApi("re-email", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({ email: cred })
+			});
+			if (respone && respone.ok) {
+				console.log("Verification email resent");
+				showPopup("Verification email resent!", "success");
+				setTimeout(() => {
+					window.location.href = "esent.html";
+				}, 1000);
+			}
+			else {
+				showPopup("Account not verified", "error");
+			}
 		}
 	}
 }

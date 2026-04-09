@@ -39,7 +39,7 @@ async function register(event) {
 		console.log("Registration successful");
 		showPopup("Registration successful!", "success");
 		setTimeout(() => {
-			window.location.href = "econf.html";
+			window.location.href = "esent.html";
 		}, 1000);
 	}
 	else if (respone.status === 409) {

@@ -1,6 +1,6 @@
 use crate::dto::gallery_dto::{CommentDTO, GalleryDTO, PaginatedGalleryDTO};
-use crate::headers::{log_error, Request, Response, Status};
-use crate::server::AppState;
+use crate::headers::{Request, Response, Status};
+use crate::utils::{AppState, log_error};
 use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};

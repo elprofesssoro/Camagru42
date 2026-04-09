@@ -163,7 +163,3 @@ impl Response {
         response_bytes
     }
 }
-
-pub fn log_error(context: &str, err: impl std::fmt::Display) {
-    eprintln!("[ERROR] {} - {}", context, err);
-}

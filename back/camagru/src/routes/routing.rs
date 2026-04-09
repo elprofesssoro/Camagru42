@@ -1,7 +1,7 @@
 use crate::controllers;
 use crate::headers::{Request, Response, Status};
 use crate::middleware::auth::auth_middleware;
-use crate::server::AppState;
+use crate::utils::AppState;
 use std::sync::Arc;
 
 pub async fn route(request: &mut Request, state: &Arc<AppState>) -> Response {
@@ -69,6 +69,7 @@ async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response 
             controllers::user::log_out(request, state).await
         },
         "register" => controllers::user::register(request, state).await,
+		"re-email" => controllers::user::re_email(request, state).await,
         "gallery/like" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::gallery::like(request, state).await
