@@ -89,13 +89,24 @@ grid.addEventListener("click", async (e) => {
 		{ method: 'POST' }
 	);
 	if (response && response.status === 401) {
-		showPopup("You must be logged in to comment.", "error", ".post[data-post-id='" + postId + "'] form");
+		showPopup("You must be logged in to like a post.", "error", ".post[data-post-id='" + postId + "'] form");
 		return;
 	}
 	if (response.ok) {
 		const likesCounter = likeButton.querySelector('.count-likes');
 		const currentLikes = Number(likesCounter?.textContent) || 0;
-		if (likesCounter) likesCounter.textContent = String(currentLikes + 1);
+		if (!likesCounter) return ;
+		if (response.status === 200) {
+			likesCounter.textContent = String(Math.max(0, currentLikes - 1));
+			likeButton.classList.remove("liked");
+			return;
+		}
+		else if (response.status === 201) {
+			likesCounter.textContent = String(currentLikes + 1);
+			likeButton.classList.add("liked");
+			return;
+		}
+
 	}
 	else {
 		showPopup("Failed to like the post. Please try again.", "error", ".post[data-post-id='" + postId + "'] form");

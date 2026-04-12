@@ -14,6 +14,7 @@ CREATE TABLE sessions (
     session_token VARCHAR(128) PRIMARY KEY,
     user_id INT NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT unique_session_user UNIQUE (user_id),
     CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

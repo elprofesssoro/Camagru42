@@ -4,36 +4,36 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::{TcpListener, TcpStream};
 
-use sqlx::{PgPool};
+use sqlx::PgPool;
 
-use crate::headers::{Request};
+use crate::headers::Request;
 use crate::routes::routing::route;
-use crate::utils::{AppState, EmailConfig, log_error};
+use crate::utils::{log_error, AppState, EmailConfig};
 
 pub async fn server() -> Result<(), Error> {
-	let conn = match connect_db().await {
-	    Some(conn) => conn,
-	    None => {
-	        println!("Database connection was not established");
-	        return Err(Error::new(
-	            std::io::ErrorKind::ConnectionRefused,
-	            "Database connection was not established",
-	        ));
-	    }
-	};
-	let email_conf = match EmailConfig::get_env() {
-		Ok(conf) => conf,
-		Err(err) => {
-			log_error("Error parsing email configuration", err);
-			 return Err(Error::new(
-	            std::io::ErrorKind::ConnectionRefused,
-	            "Error parsing email configuration",
-	        ));
-		}
-	};
+    let conn = match connect_db().await {
+        Some(conn) => conn,
+        None => {
+            println!("Database connection was not established");
+            return Err(Error::new(
+                std::io::ErrorKind::ConnectionRefused,
+                "Database connection was not established",
+            ));
+        }
+    };
+    let email_conf = match EmailConfig::get_env() {
+        Ok(conf) => conf,
+        Err(err) => {
+            log_error("Error parsing email configuration", err);
+            return Err(Error::new(
+                std::io::ErrorKind::ConnectionRefused,
+                "Error parsing email configuration",
+            ));
+        }
+    };
     let state = AppState {
         db: conn,
-		email_conf
+        email_conf,
     };
     let shared_state = Arc::new(state);
     let listener: TcpListener = TcpListener::bind("0.0.0.0:8080").await?;
@@ -64,7 +64,9 @@ async fn handle_connection(stream: TcpStream, state: Arc<AppState>) -> Result<()
 
     let response = route(&mut request, &state).await;
 
-    writer.write_all(&response.to_http_response()).await?;
+    writer
+        .write_all(&response.to_http_response(&request.origin))
+        .await?;
     writer.flush().await?;
     Ok(())
 }
@@ -85,6 +87,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
     let mut content_length = 0;
     let mut content_type: Option<String> = None;
     let mut cookie: Option<String> = None;
+    let mut origin: String = format!("http://localhost:80"); 
 
     let mut line = String::new();
     loop {
@@ -113,6 +116,11 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         if trimmed.to_lowercase().starts_with("cookie:") {
             if let Some((_, value)) = trimmed.split_once(':') {
                 cookie = Some(value.trim().to_string());
+            }
+        }
+        if trimmed.to_lowercase().starts_with("origin:") {
+            if let Some((_, value)) = trimmed.split_once(':') {
+                origin = value.trim().to_string();
             }
         }
     }
@@ -144,6 +152,7 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
         cookie,
         user_id: None,
         pub_path: public_dir,
+        origin
     })
 }
 

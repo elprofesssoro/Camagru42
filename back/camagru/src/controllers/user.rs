@@ -1,15 +1,11 @@
-use crate::dto::request_dto::{LoginDTO, RegisterDTO, ReEmailDTO};
+use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RegisterDTO};
 use crate::headers::{Request, Response, Status};
-use crate::utils::{AppState, EmailConfig, send_email, log_error};
+use crate::utils::{log_error, send_email, AppState, EmailConfig};
 use bcrypt::{hash, verify, DEFAULT_COST};
-use lettre::message::header::ContentType;
-use lettre::transport::smtp::authentication::Credentials;
-use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde_json::from_slice;
 use sqlx::Row;
-use std::env;
 use std::sync::Arc;
 
 pub async fn log_in_get(request: &Request) -> Response {
@@ -112,15 +108,16 @@ pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
         return Response::empty(Status::Unauthorized);
     }
     let q = "DELETE FROM sessions WHERE user_id = $1";
-    let result = sqlx::query(q).bind(&request.user_id).execute(&state.db).await;
+    let result = sqlx::query(q)
+        .bind(&request.user_id)
+        .execute(&state.db)
+        .await;
     match result {
-        Ok(_) => {
-            Response::cookie(Status::Ok, String::new())
-        },
+        Ok(_) => Response::cookie(Status::Ok, String::new()),
         Err(err) => {
             log_error("Database error deleting session token (log_out)", err);
             Response::empty(Status::InternalServerError)
-        },
+        }
     }
 }
 
@@ -165,7 +162,7 @@ pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
         Ok(_) => {
             let email = payload.email.clone();
             let v_token = v_token.clone();
-			let email_conf = state.email_conf.clone();
+            let email_conf = state.email_conf.clone();
             tokio::spawn(async move {
                 prepare_email(email_conf, email, v_token).await;
             });
@@ -216,7 +213,7 @@ pub async fn me(request: &Request) -> Response {
 }
 
 pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
-	let content_type = request.content_type.as_deref().unwrap_or("");
+    let content_type = request.content_type.as_deref().unwrap_or("");
     if !content_type.starts_with("application/json") {
         return Response::empty(Status::UnsupportedMediaType);
     }
@@ -229,24 +226,25 @@ pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
         Ok(payload) => payload,
         Err(_) => return Response::empty(Status::BadRequest),
     };
-	let token = generate_token();
-    let q =
-        "UPDATE users 
+    let token = generate_token();
+    let q = "UPDATE users 
 		SET verification_token = $1 
 		WHERE email = $2 AND is_verified = FALSE";
     let result = sqlx::query(&q)
-		.bind(&token)
+        .bind(&token)
         .bind(&payload.email)
         .execute(&state.db)
         .await;
 
     match result {
-        Ok(res) => {		
-			if (res.rows_affected() == 0){ return Response::empty(Status::Ok); }
-			
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return Response::empty(Status::Ok);
+            }
+
             let email = payload.email.clone();
-	        let token = token.clone();
-			let email_conf_clone = state.email_conf.clone();
+            let token = token.clone();
+            let email_conf_clone = state.email_conf.clone();
 
             tokio::spawn(async move {
                 prepare_email(email_conf_clone, email, token).await;
@@ -260,20 +258,19 @@ pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
             log_error("Error inserting user during registration", e);
             Response::empty(Status::InternalServerError)
         }
-	}
+    }
 }
 
 async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: String) {
     let verify_link = format!("http://localhost:80/api/verify?token={}", token);
-    let (username, password) = (email_conf.get_email(), email_conf.get_pass());
-	let from = format!("Camagru Admin <{}>", username);
-	let to = format!("<{}>", recv_email);
-	let subject= "Welcome to Camagru! Verify your account".to_string();
-	let body = format!(
-            "Please click the following link to verify your account: {}",
-            verify_link
-        );
-	send_email(email_conf, from, to, subject, body).await
+    let from = format!("Camagru Admin <{}>", email_conf.get_email());
+    let to = format!("<{}>", recv_email);
+    let subject = "Welcome to Camagru! Verify your account".to_string();
+    let body = format!(
+        "Please click the following link to verify your account: {}",
+        verify_link
+    );
+    send_email(email_conf, from, to, subject, body).await
 }
 
 fn validate_login_input(login_dto: &LoginDTO) -> u8 {
@@ -340,7 +337,13 @@ fn generate_token() -> String {
 }
 
 async fn session_token_insert(state: &Arc<AppState>, session: String, user_id: i32) -> Response {
-    let q = "INSERT INTO sessions (session_token, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '5 minutes')";
+    let q = "INSERT INTO sessions (session_token, user_id, expires_at) 
+        VALUES ($1, $2, NOW() + INTERVAL '5 minutes')
+        ON CONFLICT (user_id) 
+        DO UPDATE SET 
+            session_token = EXCLUDED.session_token, 
+            expires_at = EXCLUDED.expires_at";
+            
     let result = sqlx::query(q)
         .bind(&session)
         .bind(&user_id)

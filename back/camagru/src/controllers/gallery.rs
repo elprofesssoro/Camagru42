@@ -20,9 +20,7 @@ pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
     };
 
     println!("Page: {}, Per Page: {}", page, per_page);
-    let mut posts: Vec<GalleryDTO> = Vec::new();
 
-    let total_posts: usize = 200;
     let safe_per_page = if per_page > 50 { 50 } else { per_page } as i64;
     let current_page = if page == 0 { 1 } else { page  } as i64;
 	let offset = (current_page - 1) * safe_per_page;
@@ -58,18 +56,6 @@ pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
             return Response::empty(Status::InternalServerError);
         }
     };
-
-    // let start_index = (current_page - 1) * safe_per_page;
-    // let end_index = start_index + safe_per_page;
-    // for i in start_index..end_index.min(total_posts) {
-    //     let post = GalleryDTO {
-    //         author: format!("User {}", i),
-    //         likes: i,
-    //         img_name: String::from("my_new_photo.png"),
-    //         post_id: i + 100,
-    //     };
-    //     posts.push(post);
-    // }
 
     let response_data = PaginatedGalleryDTO { 
 		posts, 
@@ -118,7 +104,7 @@ pub async fn like(request: &Request, state: &Arc<AppState>) -> Response {
     match result {
         Ok(res) => {
             if res.rows_affected() > 0 {
-                tx.commit().await;
+                let _ = tx.commit().await;
                 return Response::empty(Status::Ok);
             }
             let q = "INSERT INTO post_likes (user_id, post_id) VALUES ($1, $2)";
@@ -129,18 +115,18 @@ pub async fn like(request: &Request, state: &Arc<AppState>) -> Response {
                 .await;
             match result {
                 Ok(_) => {
-                    tx.commit().await;
-                    return Response::empty(Status::Ok);
+                    let _ = tx.commit().await;
+                    return Response::empty(Status::Created);
                 }
                 Err(err) => {
-                    tx.rollback();
+                    let _ = tx.rollback().await;
                     log_error("Database error liking post", err);
                     return Response::empty(Status::InternalServerError);
                 }
             }
         }
         Err(err) => {
-            tx.rollback();
+            let _ = tx.rollback().await;
             log_error("Database error deleting like", err);
             return Response::empty(Status::InternalServerError);
         }

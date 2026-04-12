@@ -15,7 +15,7 @@ async function callApi(path, customOptions = {}) {
       ...customOptions.headers
     }
   };
-  const res = await fetch(`http://localhost:8080/api/${path}`, finalOptions);
+  const res = await fetch(`/api/${path}`, finalOptions);
 
   let data = null;
   const text = await res.text();

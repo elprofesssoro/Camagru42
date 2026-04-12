@@ -1,4 +1,3 @@
-
 #[derive(Debug)]
 pub struct Request {
     pub method: String,
@@ -11,6 +10,7 @@ pub struct Request {
     pub body: Option<Vec<u8>>,
     pub user_id: Option<i32>,
     pub pub_path: String,
+    pub origin: String,
 }
 
 #[derive(Debug)]
@@ -114,7 +114,7 @@ impl Response {
         Response::new(Status::SeeOther, None, None, None, Some(location))
     }
 
-    pub fn to_http_response(&self) -> Vec<u8> {
+    pub fn to_http_response(&self, req_origin: &str) -> Vec<u8> {
         let length = match &self.body {
             Some(b) => b.len(),
             None => 0,
@@ -130,7 +130,10 @@ impl Response {
                 } else {
                     format!("300")
                 };
-                format!("Set-Cookie: session_id={}; HttpOnly; Path=/; SameSite=Lax; Max-Age={}\r\n", cookie, age)
+                format!(
+                    "Set-Cookie: session_id={}; HttpOnly; Path=/; SameSite=Lax; Max-Age={}\r\n",
+                    cookie, age
+                )
             }
             None => String::new(),
         };
@@ -138,11 +141,21 @@ impl Response {
             Some(location) => format!("Location: {}\r\n", location),
             None => String::new(),
         };
+        let allowed_origins = vec![
+            "http://localhost",
+            "http://192.168.2.78",
+            "https://my-production-domain.com",
+        ];
+        let f_origin = if allowed_origins.contains(&req_origin) {
+            req_origin
+        } else {
+            "http://localhost"
+        };
         let headers = format!(
             "{}\r\n\
         	{}\
             Content-Length: {}\r\n\
-            Access-Control-Allow-Origin: http://localhost\r\n\
+            Access-Control-Allow-Origin: {}\r\n\
             Access-Control-Allow-Credentials: true\r\n\
             Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE\r\n\
             Access-Control-Allow-Headers: Content-Type\r\n\
@@ -152,6 +165,7 @@ impl Response {
             self.status.status_line(),
             content_type_header,
             length,
+            f_origin,
             cookie_header,
             location_header,
         );

@@ -24,25 +24,13 @@ impl EmailConfig {
 		self.password.clone()
 	}
 	pub fn get_env() -> Result<Self, Error> {
-    	let email = std::env::var("EMAIL_HOST")
+    	let email = env::var("EMAIL_HOST")
     	    .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotFound, e))?;
-    	let password = std::env::var("PASSWORD_HOST")
+    	let password = env::var("PASSWORD_HOST")
     	    .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotFound, e))?;
 		
     	Ok(Self { email, password })
 	}
-}
-
-pub fn parse_env() -> (String, String) {
-    let username = match env::var("EMAIL_HOST") {
-        Ok(str) => str,
-        Err(_) => "default@gmail.com".to_string(),
-    };
-    let password = match env::var("PASSWORD_HOST") {
-        Ok(str) => str,
-        Err(_) => "123345".to_string(),
-    };
-    (username, password)
 }
 
 pub async fn send_email(email_conf: EmailConfig, from: String, to: String, subject: String, body: String) {
