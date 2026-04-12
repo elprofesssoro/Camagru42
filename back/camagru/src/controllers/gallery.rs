@@ -1,40 +1,38 @@
 use crate::dto::gallery_dto::{CommentDTO, GalleryDTO, PaginatedGalleryDTO};
 use crate::headers::{Request, Response, Status};
-use crate::utils::{AppState, log_error};
-use lettre::message::header::ContentType;
-use lettre::transport::smtp::authentication::Credentials;
-use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-use sqlx;
-use std::env;
+use crate::unwrap_or_return;
+use crate::utils::{log_error, send_email, AppState, EmailConfig};
+use sqlx::{self};
 use std::sync::Arc;
 
 pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
-    let query = match request.query.as_ref() {
-        Some(query) => query,
-        None => return Response::empty(Status::BadRequest),
-    };
-
-    let (page, per_page) = match validate_gallery_query(query) {
-        Some((page, per_page)) => (page, per_page),
-        None => return Response::empty(Status::BadRequest),
-    };
+    let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
+    // let query = match request.query.as_ref() {
+    //     Some(query) => query,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
+    let (page, per_page) = unwrap_or_return!(validate_gallery_query(query), Status::BadRequest);
+    // let (page, per_page) = match validate_gallery_query(query) {
+    //     Some((page, per_page)) => (page, per_page),
+    //     None => return Response::empty(Status::BadRequest),
+    // };
 
     println!("Page: {}, Per Page: {}", page, per_page);
 
     let safe_per_page = if per_page > 50 { 50 } else { per_page } as i64;
-    let current_page = if page == 0 { 1 } else { page  } as i64;
-	let offset = (current_page - 1) * safe_per_page;
+    let current_page = if page == 0 { 1 } else { page } as i64;
+    let offset = (current_page - 1) * safe_per_page;
 
-	let q = "SELECT COUNT(*) FROM posts";
-	let total_posts: i64 = match sqlx::query_scalar(q).fetch_one(&state.db).await {
-		Ok(count) => count,
-		Err(err) => {
-			log_error("Database error selecting amount of posts", err);
-			return Response::empty(Status::InternalServerError);
-		}
-	};
+    let q = "SELECT COUNT(*) FROM posts";
+    let total_posts: i64 = match sqlx::query_scalar(q).fetch_one(&state.db).await {
+        Ok(count) => count,
+        Err(err) => {
+            log_error("Database error selecting amount of posts", err);
+            return Response::empty(Status::InternalServerError);
+        }
+    };
 
-	let q = "
+    let q = "
 		SELECT u.username AS author,
 			p.id AS post_id, 
 			p.image_path AS img_name,
@@ -44,11 +42,11 @@ pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
 		ORDER BY p.post_date DESC
 		LIMIT $1 OFFSET $2
 	";
-	let posts: Vec<GalleryDTO> = match sqlx::query_as::<_, GalleryDTO>(q)
+    let posts: Vec<GalleryDTO> = match sqlx::query_as::<_, GalleryDTO>(q)
         .bind(safe_per_page)
         .bind(offset)
         .fetch_all(&state.db)
-        .await 
+        .await
     {
         Ok(posts) => posts,
         Err(e) => {
@@ -57,10 +55,10 @@ pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
         }
     };
 
-    let response_data = PaginatedGalleryDTO { 
-		posts, 
-		total_posts: total_posts as usize 
-	};
+    let response_data = PaginatedGalleryDTO {
+        posts,
+        total_posts: total_posts as usize,
+    };
 
     match serde_json::to_string(&response_data) {
         Ok(json) => Response::json(json),
@@ -77,15 +75,18 @@ pub async fn like(request: &Request, state: &Arc<AppState>) -> Response {
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
 
-    let query = match request.query.as_ref() {
-        Some(query) => query,
-        None => return Response::empty(Status::BadRequest),
-    };
+    let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
+    // let query = match request.query.as_ref() {
+    //     Some(query) => query,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
 
-    let post_id = match validate_like_query(query) {
-        Some(post_id) => post_id,
-        None => return Response::empty(Status::BadRequest),
-    };
+    let post_id = unwrap_or_return!(validate_like_query(query), Status::BadRequest);
+
+    // let post_id = match validate_like_query(query) {
+    //     Some(post_id) => post_id,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
 
     let mut tx = match state.db.begin().await {
         Ok(transaction) => transaction,
@@ -144,19 +145,25 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
         Some(user_id) => user_id,
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
-    let query = match request.query.as_ref() {
-        Some(query) => query,
-        None => return Response::empty(Status::BadRequest),
-    };
 
-    let post_id = match validate_like_query(query) {
-        Some(post_id) => post_id,
-        None => return Response::empty(Status::BadRequest),
-    };
-    let body = match request.body.as_ref() {
-        Some(body) => body,
-        None => return Response::empty(Status::BadRequest),
-    };
+    let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
+    // let query = match request.query.as_ref() {
+    //     Some(query) => query,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
+
+    let post_id = unwrap_or_return!(validate_like_query(query), Status::BadRequest);
+    // let post_id = match validate_like_query(query) {
+    //     Some(post_id) => post_id,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
+
+    let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
+    // let body = match request.body.as_ref() {
+    //     Some(body) => body,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
+
     let comment = match serde_json::from_slice::<CommentDTO>(body) {
         Ok(res) => res,
         Err(_) => return Response::empty(Status::BadRequest),
@@ -185,9 +192,19 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
                 .fetch_optional(&state.db)
                 .await;
             if let Ok(Some(data)) = result {
-                let comment_text = comment.comment.clone();
+                let email_conf = state.email_conf.clone();
+                let NotificationData {
+                    author_email,
+                    commenter_username,
+                } = data;
+
                 tokio::spawn(async move {
-                    send_email(data.author_email, data.commenter_username, comment_text).await;
+                    prepare_email(
+                        email_conf,
+                        author_email,
+                        commenter_username,
+                        comment.comment,
+                    )
                 });
             }
 
@@ -198,6 +215,22 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
             return Response::empty(Status::InternalServerError);
         }
     }
+}
+
+async fn prepare_email(
+    email_conf: EmailConfig,
+    recv_email: String,
+    username: String,
+    comment: String,
+) {
+    let from = format!("Camagru Admin <{}>", email_conf.get_email());
+    let to = format!("<{}>", recv_email);
+    let subject = "Your post was commented".to_string();
+    let body = format!(
+        "Hey, {} just left a comment to your post:\n {}",
+        username, comment
+    );
+    send_email(email_conf, from, to, subject, body).await
 }
 
 fn validate_gallery_query(query: &str) -> Option<(usize, usize)> {
@@ -235,47 +268,59 @@ fn validate_like_query(query: &str) -> Option<i32> {
     }
 }
 
-async fn send_email(user_email: String, username: String, comment: String) {
-    let message = format!(
-        "Hey, {} just left a comment to your post:\n {}",
-        username, comment
-    );
-    let (username, password) = parse_env();
+// async fn send_email(user_email: String, username: String, comment: String) {
+//     let message = format!(
+//         "Hey, {} just left a comment to your post:\n {}",
+//         username, comment
+//     );
+//     let (username, password) = parse_env();
 
-    let email = Message::builder()
-        .from(format!("Camagru Admin <{}>", username).parse().unwrap())
-        .to(format!("<{}>", user_email).parse().unwrap())
-        .subject("Someone just commented your post")
-        .header(ContentType::TEXT_PLAIN)
-        .body(message)
-        .unwrap();
+//     let email = Message::builder()
+//         .from(format!("Camagru Admin <{}>", username).parse().unwrap())
+//         .to(format!("<{}>", user_email).parse().unwrap())
+//         .subject("Someone just commented your post")
+//         .header(ContentType::TEXT_PLAIN)
+//         .body(message)
+//         .unwrap();
 
-    println!("{}, {}", username, password);
-    let creds = Credentials::new(username, password);
+//     println!("{}, {}", username, password);
+//     let creds = Credentials::new(username, password);
 
-    let mailer: AsyncSmtpTransport<Tokio1Executor> =
-        AsyncSmtpTransport::<Tokio1Executor>::relay("smtp.gmail.com")
-            .unwrap()
-            .credentials(creds)
-            .build();
+//     let mailer: AsyncSmtpTransport<Tokio1Executor> =
+//         AsyncSmtpTransport::<Tokio1Executor>::relay("smtp.gmail.com")
+//             .unwrap()
+//             .credentials(creds)
+//             .build();
 
-    match mailer.send(email).await {
-        Ok(_) => println!("Email sent successfully!"),
-        Err(e) => eprintln!("Could not send email: {:?}", e),
-    }
-}
+//     match mailer.send(email).await {
+//         Ok(_) => println!("Email sent successfully!"),
+//         Err(e) => eprintln!("Could not send email: {:?}", e),
+//     }
+// }
 
-fn parse_env() -> (String, String) {
-    let username = match env::var("EMAIL_HOST") {
-        Ok(str) => str,
-        Err(_) => "default@gmail.com".to_string(),
-    };
-    let password = match env::var("PASSWORD_HOST") {
-        Ok(str) => str,
-        Err(_) => "123345".to_string(),
-    };
-    (username, password)
-}
+// fn parse_env() -> (String, String) {
+//     let username = match env::var("EMAIL_HOST") {
+//         Ok(str) => str,
+//         Err(_) => "default@gmail.com".to_string(),
+//     };
+//     let password = match env::var("PASSWORD_HOST") {
+//         Ok(str) => str,
+//         Err(_) => "123345".to_string(),
+//     };
+//     (username, password)
+// }
+
+// async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: String) {
+//     let verify_link = format!("http://localhost:80/api/verify?token={}", token);
+//     let from = format!("Camagru Admin <{}>", email_conf.get_email());
+//     let to = format!("<{}>", recv_email);
+//     let subject = "Welcome to Camagru! Verify your account".to_string();
+//     let body = format!(
+//         "Please click the following link to verify your account: {}",
+//         verify_link
+//     );
+//     send_email(email_conf, from, to, subject, body).await
+// }
 
 // fn validate_query(params: Vec<String>) -> Option<Vec<usize>> {
 // 	let mut key_value = param.splitn(2, '=');

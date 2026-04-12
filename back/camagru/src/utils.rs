@@ -62,3 +62,13 @@ pub async fn send_email(email_conf: EmailConfig, from: String, to: String, subje
 pub fn log_error(context: &str, err: impl std::fmt::Display) {
     eprintln!("[ERROR] {} - {}", context, err);
 }
+
+#[macro_export]
+macro_rules! unwrap_or_return {
+    ($expr:expr, $status:expr) => {
+        match $expr {
+            Some(val) => val,
+            None => return crate::headers::Response::empty($status),
+        }
+    };
+}

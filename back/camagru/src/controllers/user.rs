@@ -1,5 +1,6 @@
 use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RegisterDTO};
 use crate::headers::{Request, Response, Status};
+use crate::unwrap_or_return;
 use crate::utils::{log_error, send_email, AppState, EmailConfig};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::distributions::Alphanumeric;
@@ -15,10 +16,11 @@ pub async fn log_in_get(request: &Request) -> Response {
         return Response::empty(Status::UnsupportedMediaType);
     }
 
-    let body = match request.body.as_ref() {
-        Some(body) => body,
-        None => return Response::empty(Status::BadRequest),
-    };
+    let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
+    // let body = match request.body.as_ref() {
+    //     Some(body) => body,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
 
     let payload = match from_slice::<LoginDTO>(body) {
         Ok(payload) => payload,
@@ -44,10 +46,11 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
         return Response::empty(Status::UnsupportedMediaType);
     }
 
-    let body = match request.body.as_ref() {
-        Some(body) => body,
-        None => return Response::empty(Status::BadRequest),
-    };
+    let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
+    // let body = match request.body.as_ref() {
+    //     Some(body) => body,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
 
     let payload = match from_slice::<LoginDTO>(body) {
         Ok(payload) => payload,
@@ -343,7 +346,7 @@ async fn session_token_insert(state: &Arc<AppState>, session: String, user_id: i
         DO UPDATE SET 
             session_token = EXCLUDED.session_token, 
             expires_at = EXCLUDED.expires_at";
-            
+
     let result = sqlx::query(q)
         .bind(&session)
         .bind(&user_id)

@@ -137,7 +137,7 @@ grid.addEventListener("submit", async (e) => {
 
 	const userId = 0;
 	const response = await callApi(
-		'gallery/comment?user_id=' + userId + '&post_id=' + postId,
+		'gallery/comment?post_id=' + postId,
 		{
 			method: 'POST',
 			headers: {
