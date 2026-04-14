@@ -1,94 +1,124 @@
 use crate::headers::{Request, Response, Status};
 use crate::dto::create_dto::{CreatePostDTO, HistoryDTO};
+use crate::utils::{AppState, extract_json, log_error};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{from_slice, to_string};
+use sqlx::Row;
+use std::sync::{Arc, OnceLock};
 use image;
+use chrono::{DateTime, Utc};
 
-pub async fn create_post(request: &Request) -> Response {
-	let content_type = request.content_type.as_deref().unwrap_or("");
+pub async fn create_post(request: &Request, state: &AppState) -> Response {
+    let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
+	// let content_type = request.content_type.as_deref().unwrap_or("");
 
-    if !content_type.starts_with("application/json") {
-        return Response::empty(Status::UnsupportedMediaType);
-    }
+    // if !content_type.starts_with("application/json") {
+    //     return Response::empty(Status::UnsupportedMediaType);
+    // }
 
-	let body = match request.body.as_ref() {
-		Some(body) => body,
-		None => return Response::empty(Status::BadRequest)
-	};
+	// let body = match request.body.as_ref() {
+	// 	Some(body) => body,
+	// 	None => return Response::empty(Status::BadRequest)
+	// };
 
-	let payload = match from_slice::<CreatePostDTO>(body) {
+	let payload = match extract_json::<CreatePostDTO>(request) {
 		Ok(res) => res,
-		Err(_) => return Response::empty(Status::BadRequest)
+		Err(status) => return Response::empty(status)
 	};
 	let image_str = payload.image.split_once(',').map(|(_, data)| data.to_string()).unwrap_or(payload.image);
     let sticker_name = payload.sticker_name;
     let (pos_x, pos_y, width, height) = (payload.pos_x, payload.pos_y, payload.width, payload.height);
     let pub_path = request.pub_path.clone();
     let process_result = tokio::task::spawn_blocking(move || {
-        let image_bytes = match STANDARD.decode(&image_str) {
-            Ok(b) => b,
-            Err(_) => return Err(Status::BadRequest),
-        };
-
-        let mut img = match image::load_from_memory(&image_bytes) {
-            Ok(i) => i,
-            Err(_) => return Err(Status::Unauthorized),
-        };
-
-        let sticker_path = format!("{}/stickers/{}", pub_path, sticker_name);
-        let sticker = match image::open(&sticker_path) {
-            Ok(s) => s,
-            Err(_) => return Err(Status::NotFound),
-        };
-
-        let sticker = image::imageops::resize(&sticker, width, height, image::imageops::FilterType::Nearest);
-        image::imageops::overlay(&mut img, &sticker, pos_x as i64, pos_y as i64);
-
-        let img_name = "photo.jpg";
-        let final_path = format!("{}/posts/{}", pub_path, img_name); 
-        if img.save(&final_path).is_err() {
-            return Err(Status::InternalServerError);
-        }
-
-        Ok(final_path.to_string()) 
-        
+        process_image(
+            &image_str,
+            &pub_path,
+            &sticker_name,
+            width,
+            height,
+            pos_x as i64,
+            pos_y as i64,
+        )
     }).await;
 
-    match process_result {
-        Ok(Ok(saved_path)) => {
-            println!("Image successfully processed in background and saved to {}", saved_path);
-            return Response::empty(Status::Ok)
-        }
+	
+    let image_name = match process_result {
+        Ok(Ok(image_name)) => {
+            println!("Image successfully processed in background and saved to {}", image_name);
+			image_name
+		},
         Ok(Err(status)) => return Response::empty(status), 
-        Err(_) => return Response::empty(Status::InternalServerError),
-    }
+        Err(err) =>{
+			log_error("Error saving image", err);
+			return Response::empty(Status::InternalServerError)
+		} ,
+    };
+
+	let q = "INSERT INTO posts (user_id, image_path) VALUES ($1, $2)";
+	let result = sqlx::query(q)
+		.bind(user_id)
+		.bind(&image_name)
+		.execute(&state.db)
+		.await;
+
+	match result {
+		Ok(_) => Response::empty(Status::Ok),
+		Err(err) => {
+			log_error("Create - 65", err);
+			Response::empty(Status::InternalServerError)
+		}
+	}
 }
 
-
-pub async fn create_get(request: &Request) -> Response {
+pub async fn create_get(request: &Request, state: &AppState) -> Response {
     let user_id = match request.user_id {
         Some(user_id) => user_id,
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
-	let mut history_posts = Vec::<HistoryDTO>::new();
+
+	let q = "SELECT image_path, post_date, id FROM posts WHERE user_id = $1";
+	let posts: Vec<HistoryDTO> = match sqlx::query_as::<_, HistoryDTO>(q)
+        .bind(user_id)
+        .fetch_all(&state.db)
+        .await
+    {
+        Ok(posts) => posts,
+        Err(e) => {
+            log_error("Database error fetching paginated posts", e);
+            return Response::empty(Status::InternalServerError);
+        }
+    };
+
+	match serde_json::to_string(&posts) {
+        Ok(json) => Response::json(json),
+        Err(e) => {
+            log_error("Error in HistoryDTO serialization", e);
+            Response::empty(Status::InternalServerError)
+        }
+    }
+
+	// let mut history_posts = Vec::<HistoryDTO>::new();
 	
-	for i in 0..10 {
-		let post = HistoryDTO {
-			img_name: format!("my_new_photo.png"),
-			likes: i,
-			post_id: i
-		};
-		history_posts.push(post)
-	};
-	match to_string(&history_posts){
-		Ok(json) => {
-			return Response::json(json)
-		},
-		Err(e) => {
-			println!("Error parsing to string history post: {:?}", e);
-			return Response::empty(Status::InternalServerError)
-		}
-	};
+	// for i in 0..10 {
+	// 	let post = HistoryDTO {
+	// 		image_path: format!("my_new_photo.png"),
+	// 		likes: i,
+	// 		post_id: i
+	// 	};
+	// 	history_posts.push(post)
+	// };
+	// match to_string(&history_posts){
+	// 	Ok(json) => {
+	// 		return Response::json(json)
+	// 	},
+	// 	Err(e) => {
+	// 		println!("Error parsing to string history post: {:?}", e);
+	// 		return Response::empty(Status::InternalServerError)
+	// 	}
+	// };
 }
 
 pub async fn create_delete(request: &Request) -> Response {
@@ -105,6 +135,42 @@ pub async fn create_delete(request: &Request) -> Response {
 	Response::empty(Status::Ok)
 }
 
+fn process_image(
+    image_str: &str,
+    pub_path: &str,
+    sticker_name: &str,
+    width: u32,
+    height: u32,
+    pos_x: i64,
+    pos_y: i64,
+) -> Result<String, Status> {
+    let image_bytes = match STANDARD.decode(image_str) {
+        Ok(b) => b,
+        Err(_) => return Err(Status::BadRequest),
+    };
+
+    let mut img = match image::load_from_memory(&image_bytes) {
+        Ok(i) => i,
+        Err(_) => return Err(Status::Unauthorized),
+    };
+
+    let sticker_path = format!("{}/stickers/{}", pub_path, sticker_name);
+    let sticker = match image::open(&sticker_path) {
+        Ok(s) => s,
+        Err(_) => return Err(Status::NotFound),
+    };
+
+    let sticker = image::imageops::resize(&sticker, width, height, image::imageops::FilterType::Nearest);
+    image::imageops::overlay(&mut img, &sticker, pos_x, pos_y);
+
+    let img_name = format!("{}.jpg",uuid::Uuid::new_v4());
+    let final_path = format!("{}/posts/{}", pub_path, img_name); 
+    if img.save(&final_path).is_err() {
+        return Err(Status::InternalServerError);
+    }
+
+    Ok(img_name.to_string())
+}
 
 pub fn validate_delete_query(query: &str) -> Option<i32> {
     let mut key_value = query.splitn(2, '=');

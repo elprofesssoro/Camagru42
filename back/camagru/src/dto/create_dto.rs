@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use sqlx::FromRow;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CreatePostDTO {
@@ -10,9 +12,9 @@ pub struct CreatePostDTO {
     pub height: u32,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, FromRow)]
 pub struct HistoryDTO {
-	pub img_name: String,
-	pub likes: i32,
-	pub post_id: i32
+	pub image_path: String,
+	pub post_date: DateTime<Utc>,
+	pub id: i32
 }

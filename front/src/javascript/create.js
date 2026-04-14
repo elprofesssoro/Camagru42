@@ -71,7 +71,7 @@ function updateHistory() {
 			response.data.forEach((item) => {
 				const creationHTML = `
 					<div class="creation" data-post-id="${item.post_id}">
-						<img src="/pub/posts/${item.img_name}" alt="${item.img_name}">
+						<img src="/pub/posts/${item.image_path}" alt="${item.image_path}">
 						<button class="delete-btn">Delete</button>
 					</div>
 				`;
@@ -200,13 +200,13 @@ function captureImage(event) {
 
 function postImage() {
 	if (!currentSticker || !isUploaded) {
-		showPopup("Add an image and a sticker before posting.", "error");
+		showPopup("Add an image and a sticker before posting.", "error", "#post-btn");
 		return;
 	}
 
 	const postImg = overlay.querySelector('.post img');
 	if (!postImg) {
-		showPopup("No image found to post.", "error");
+		showPopup("No image found to post.", "error", "#post-btn");
 		return;
 	}
 
@@ -214,7 +214,7 @@ function postImage() {
 	const stickerRect = currentSticker.getBoundingClientRect();
 
 	if (!imageRect.width || !imageRect.height) {
-		showPopup("Image is not ready yet.", "error");
+		showPopup("Image is not ready yet.", "error", "#post-btn");
 		return;
 	}
 
@@ -245,16 +245,18 @@ function postImage() {
 		});
 	}).then((response) => {
 		if (response && response.ok) {
-			showPopup("Image posted successfully!", "ok");
-		} else {
-			showPopup("Failed to post image.", "error");
+			showPopup("Image posted successfully!", "ok", "#post-btn");
+		} else if (response.status === 413) {
+			showPopup(`Image is too large.`, "error", "#post-btn");
 			postButton.disabled = !(isStickered && isUploaded);
+			return;
 		}
 		updateHistory();
 	}).catch((error) => {
 		console.error("Failed to post image", error);
-		showPopup("Failed to post image.", "error");
+		showPopup("Failed to post image.", "error", "#post-btn");
 		postButton.disabled = !(isStickered && isUploaded);
+		return;
 	});
 }
 

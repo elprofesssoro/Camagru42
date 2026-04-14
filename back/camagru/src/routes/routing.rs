@@ -46,7 +46,7 @@ async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
         "gallery" => controllers::gallery::gallery(request, state).await,
         "create/history" => {
             request.user_id = auth_middleware(request, state).await;
-            controllers::create::create_get(request).await
+            controllers::create::create_get(request, state).await
         }
 
         _ => Response::empty(Status::NotFound),
@@ -82,7 +82,7 @@ async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response 
         }
         "create/post" => {
             request.user_id = auth_middleware(request, state).await;
-            controllers::create::create_post(request).await
+            controllers::create::create_post(request, state).await
         }
         _ => Response::empty(Status::NotFound),
     };
