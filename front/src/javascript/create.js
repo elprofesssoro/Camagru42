@@ -46,14 +46,14 @@ document.querySelector(".creations-list").addEventListener("click", (e) => {
 		.then((response) => {
 			if (response && response.ok) {
 				creation.remove();
-				showPopup("Creation deleted successfully!", "ok");
+				showPopup("Creation deleted successfully!", "ok", ".creations-list");
 			} else {
-				showPopup("Failed to delete creation.", "error");
+				showPopup("Failed to delete creation.", "error", ".creations-list");
 			}
 		})
 		.catch((error) => {
 			console.error("Error deleting creation:", error);
-			showPopup("Failed to delete creation.", "error");
+			showPopup("Failed to delete creation.", "error", ".creations-list");
 		});
 
 });
@@ -70,7 +70,7 @@ function updateHistory() {
 			historyContainer.innerHTML = "";
 			response.data.forEach((item) => {
 				const creationHTML = `
-					<div class="creation" data-post-id="${item.post_id}">
+					<div class="creation" data-post-id="${item.id}">
 						<img src="/pub/posts/${item.image_path}" alt="${item.image_path}">
 						<button class="delete-btn">Delete</button>
 					</div>
@@ -306,10 +306,9 @@ function loadStickers() {
 			const filterList = document.querySelector(".filter-list");
 			if (!filterList) return;
 			
-			filterList.innerHTML = ""; // Clear statically hardcoded filters
+			filterList.innerHTML = "";
 			
 			files.forEach((file, index) => {
-				// Ensure it's a file, not a directory
 				if (file.type !== "file") return;
 				
 				const filename = file.name;
@@ -358,7 +357,6 @@ function bindFilterListeners() {
 	});
 }
 
-// Call on load
 loadStickers();
 
 function startDrag(e) {

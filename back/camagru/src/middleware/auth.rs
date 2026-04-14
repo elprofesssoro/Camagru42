@@ -10,7 +10,6 @@ pub async fn auth_middleware(request: &Request, state: &Arc<AppState>) -> Option
         None => return None,
     };
     if let Some(session_token) = extract_session_token(&cookie_header) {
-        println!("{:?}", session_token);
         let q = "SELECT user_id, expires_at FROM sessions WHERE session_token = $1";
         let result = sqlx::query(q)
             .bind(&session_token)

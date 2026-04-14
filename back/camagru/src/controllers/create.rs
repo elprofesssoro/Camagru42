@@ -1,3 +1,4 @@
+use crate::controllers::user;
 use crate::headers::{Request, Response, Status};
 use crate::dto::create_dto::{CreatePostDTO, HistoryDTO};
 use crate::utils::{AppState, extract_json, log_error};
@@ -121,7 +122,12 @@ pub async fn create_get(request: &Request, state: &AppState) -> Response {
 	// };
 }
 
-pub async fn create_delete(request: &Request) -> Response {
+pub async fn create_delete(request: &Request, state: &AppState) -> Response {
+	let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
+
 	let query = match request.query.as_ref() {
 		Some(query) => query,
 		None => return Response::empty(Status::BadRequest)
@@ -131,8 +137,31 @@ pub async fn create_delete(request: &Request) -> Response {
 		None => return Response::empty(Status::BadRequest)
 	};
 
-	println!("Deleting post {:?}", post_id);
-	Response::empty(Status::Ok)
+	let q = "DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING image_path";
+	let result = sqlx::query(q)
+		.bind(post_id)
+		.bind(user_id)
+		.fetch_optional(&state.db)
+		.await;
+
+	match result {
+		Ok(Some(row)) => {
+			let image_path: String = row.get("image_path");
+	        let full_file_path = format!("{}/posts/{}", request.pub_path, image_path);
+			if let Err(e) = tokio::fs::remove_file(&full_file_path).await {
+                log_error("Warning: Failed to delete image file from disk", e);
+            }
+			Response::empty(Status::Ok)
+
+		},
+		Ok(None) => {
+            Response::empty(Status::NotFound)
+		},
+		Err(err) => {
+			log_error("Error deleting post", err);
+			Response::empty(Status::InternalServerError)
+		}
+	}
 }
 
 fn process_image(

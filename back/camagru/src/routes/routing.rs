@@ -100,7 +100,7 @@ async fn routing_delete(request: &mut Request, state: &Arc<AppState>) -> Respons
     let response = match route {
         "create/delete" => {
             request.user_id = auth_middleware(request, state).await;
-            controllers::create::create_delete(request).await
+            controllers::create::create_delete(request, state).await
         }
         _ => Response::empty(Status::NotFound),
     };
