@@ -7,8 +7,9 @@
 	<link rel="stylesheet" href="../styles/common.css">
 	<link rel="stylesheet" href="../styles/header.css">
 	<link rel="stylesheet" href="../styles/log.css">
+	<script src="../javascript/api.js" defer></script>
 	<script src="../javascript/inputValidation.js" defer></script>
-	<script src="../javascript/reset.js" defer></script>
+	<script src="../javascript/forgotPass.js" defer></script>
 
 </head>
 
@@ -26,7 +27,7 @@
 		<h1>Reset your password:</h1>
 
 		<section>
-			<form action="forgotPass" method="post">
+			<form action="forgotPass" method="post" id ="passFormEmail">
 				<input type="email" name="email" placeholder="your@email.com" required id="inputEmail">
 				<button type="submit">Send recovery link</button>
 			</form>

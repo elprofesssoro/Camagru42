@@ -2,7 +2,7 @@
 
 let popupAlive = false;
 
-function showPopup(message, type, linkTo) {
+function showPopup(message, type, linkTo, duration = 1500) {
 	if (popupAlive)
 		return;
 	const popup = document.createElement("div");
@@ -16,7 +16,7 @@ function showPopup(message, type, linkTo) {
 	setTimeout(() => {
 		popup.remove();
 		popupAlive = false;
-	}, 1500);
+	}, duration);
 }
 
 function validEmail(email) {

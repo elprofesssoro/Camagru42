@@ -6,7 +6,7 @@ CREATE TABLE users (
     is_verified BOOLEAN DEFAULT FALSE,
     verification_token VARCHAR(255),
     reset_verification_token VARCHAR(255),
-    reset_expiration_token VARCHAR(255),
+    reset_expires_at TIMESTAMPTZ,
     notify_comment BOOLEAN DEFAULT TRUE
 );
 

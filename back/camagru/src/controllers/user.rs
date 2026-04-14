@@ -1,73 +1,39 @@
-use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RegisterDTO};
+use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
-use crate::utils::{log_error, send_email, AppState, EmailConfig};
+use crate::utils::{log_error, send_email, AppState, EmailConfig, extract_json};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde_json::from_slice;
 use sqlx::Row;
 use std::sync::Arc;
-
-pub async fn log_in_get(request: &Request) -> Response {
-    let content_type = request.content_type.as_deref().unwrap_or("");
-
-    if !content_type.starts_with("application/json") {
-        return Response::empty(Status::UnsupportedMediaType);
-    }
-
-    let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
-    // let body = match request.body.as_ref() {
-    //     Some(body) => body,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
-
-    let payload = match from_slice::<LoginDTO>(body) {
-        Ok(payload) => payload,
-        Err(_) => return Response::empty(Status::BadRequest),
-    };
-    println!("{:?}", payload);
-    let valid = validate_login_input(&payload);
-    if valid == 0 {
-        return Response::empty(Status::BadRequest);
-    }
-    // let search_by = match valid {
-    //     1 => "email",
-    //     2 => "username",
-    //     _ => return Response::empty(Status::BadRequest),
-    // };
-    Response::empty(Status::Ok)
-}
+use chrono::{DateTime, Utc};
+use std::sync::OnceLock;
 
 pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
-    let content_type = request.content_type.as_deref().unwrap_or("");
+    // let content_type = request.content_type.as_deref().unwrap_or("");
 
-    if !content_type.starts_with("application/json") {
-        return Response::empty(Status::UnsupportedMediaType);
-    }
+    // if !content_type.starts_with("application/json") {
+    //     return Response::empty(Status::UnsupportedMediaType);
+    // }
 
-    let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
-    // let body = match request.body.as_ref() {
-    //     Some(body) => body,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
+    // let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
+    // // let body = match request.body.as_ref() {
+    // //     Some(body) => body,
+    // //     None => return Response::empty(Status::BadRequest),
+    // // };
 
-    let payload = match from_slice::<LoginDTO>(body) {
+    let payload = match extract_json::<LoginDTO>(request) {
         Ok(payload) => payload,
-        Err(err) => {
-            log_error("Error deserializing slice", err);
-            return Response::empty(Status::NotFound);
+        Err(status) => {
+            return Response::empty(status);
         }
     };
-    println!("{:?}", payload);
-    let valid = validate_login_input(&payload);
-    if valid == 0 {
-        return Response::empty(Status::BadRequest);
-    }
-    let search_by = match valid {
-        1 => "email",
-        2 => "username",
-        _ => return Response::empty(Status::BadRequest),
+    let search_by = match validate_login_input(&payload) {
+        LoginField::Email => "email",
+        LoginField::Username => "username",
+        LoginField::Invalid => return Response::empty(Status::BadRequest),
     };
     let q = format!(
         "SELECT id, password, is_verified FROM users WHERE {} = $1",
@@ -125,19 +91,19 @@ pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
 }
 
 pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
-    let content_type = request.content_type.as_deref().unwrap_or("");
+    // let content_type = request.content_type.as_deref().unwrap_or("");
 
-    if !content_type.starts_with("application/json") {
-        return Response::empty(Status::UnsupportedMediaType);
-    }
+    // if !content_type.starts_with("application/json") {
+    //     return Response::empty(Status::UnsupportedMediaType);
+    // }
 
-    let body = match request.body.as_ref() {
-        Some(body) => body,
-        None => return Response::empty(Status::BadRequest),
-    };
-    let payload = match from_slice::<RegisterDTO>(body) {
+    // let body = match request.body.as_ref() {
+    //     Some(body) => body,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
+    let payload = match extract_json::<RegisterDTO>(request) {
         Ok(payload) => payload,
-        Err(_) => return Response::empty(Status::BadRequest),
+        Err(status) => return Response::empty(status),
     };
     println!("{:?}", payload);
     if !validate_register_input(&payload) {
@@ -181,7 +147,7 @@ pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
-pub async fn confirm(request: &Request, state: &Arc<AppState>) -> Response {
+pub async fn user_verify(request: &Request, state: &Arc<AppState>) -> Response {
     let query = match &request.query {
         Some(query) => query,
         None => return Response::redir("/error".to_string()),
@@ -215,19 +181,141 @@ pub async fn me(request: &Request) -> Response {
     }
 }
 
-pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
-    let content_type = request.content_type.as_deref().unwrap_or("");
-    if !content_type.starts_with("application/json") {
-        return Response::empty(Status::UnsupportedMediaType);
-    }
+pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
+	// let content_type = request.content_type.as_deref().unwrap_or("");
 
-    let body = match request.body.as_ref() {
-        Some(body) => body,
-        None => return Response::empty(Status::BadRequest),
-    };
-    let payload = match from_slice::<ReEmailDTO>(body) {
+    // if !content_type.starts_with("application/json") {
+    //     return Response::empty(Status::UnsupportedMediaType);
+    // }
+
+	// let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
+    // // let body = match request.body.as_ref() {
+    // //     Some(body) => body,
+    // //     None => return Response::empty(Status::BadRequest),
+    // // };
+    let payload = match extract_json::<ReEmailDTO>(request) {
         Ok(payload) => payload,
-        Err(_) => return Response::empty(Status::BadRequest),
+        Err(status) => return Response::empty(status),
+    };
+    if !validate_email(&payload.email) {
+        return Response::empty(Status::BadRequest);
+    }
+    let p_token = generate_token();
+    let q =
+        "UPDATE users SET reset_verification_token = $1, reset_expires_at = NOW() + INTERVAL '5 minutes' WHERE email = $2";
+    let result = sqlx::query(&q)
+        .bind(&p_token)
+        .bind(&payload.email)
+        .execute(&state.db)
+        .await;
+
+    match result {
+        Ok(res) => {
+			if (res.rows_affected() > 0){
+				let email_conf = state.email_conf.clone();
+            	tokio::spawn(async move {
+            	    prepare_reset_email(email_conf, payload.email, p_token).await;
+            	});
+			}
+            Response::empty(Status::Ok)
+        }
+        Err(e) => {
+            log_error("Error updating reset token", e);
+            Response::empty(Status::InternalServerError)
+        }
+    }
+}
+
+pub async fn re_pass_verify(request: &Request, state: &Arc<AppState>) -> Response {
+	let query = match request.query.as_ref() {
+        Some(q) => q,
+        None => return Response::redir("/error".to_string()),
+    };
+
+    let token = match token_query(query) {
+        Some(t) => t,
+        None => return Response::redir("/error".to_string()),
+    };
+
+    let frontend_url = format!("/resetPass?token={}", token);
+    Response::redir(frontend_url)
+}
+
+pub async fn re_pass_new(request: &Request, state: &Arc<AppState>) -> Response {
+	// let content_type = request.content_type.as_deref().unwrap_or("");
+
+    // if !content_type.starts_with("application/json") {
+    //     return Response::empty(Status::UnsupportedMediaType);
+    // }
+	// let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
+    // let payload = match from_slice::<RePassDTO>(body) {
+    //     Ok(payload) => payload,
+    //     Err(_) => return Response::empty(Status::BadRequest),
+    // };
+	let payload = match extract_json::<RePassDTO>(request) {
+ 		Ok(payload) => payload,
+        Err(status) => return Response::empty(status),
+	};
+	let query = unwrap_or_return!(&request.query, Status::BadRequest);
+	let token = unwrap_or_return!(token_query(&query), Status::BadRequest);
+    let hashed = match hash_password(&payload.password) {
+        Ok(hashed) => hashed,
+        Err(e) => {
+            log_error("Error hashing a password", e);
+            return Response::empty(Status::InternalServerError);
+        }
+    };
+    let q =
+        "SELECT id FROM users WHERE reset_verification_token = $1 AND reset_expires_at > NOW()";
+    let result = sqlx::query(&q)
+        .bind(token)
+        .fetch_optional(&state.db)
+        .await;
+
+    match result {
+        Ok(Some(row)) => {
+			let id: i32 = row.get("id");
+            let q =
+      		  	"UPDATE users SET password = $1, reset_verification_token = NULL, reset_expires_at = NULL WHERE id = $2";
+    		let result = sqlx::query(&q)
+    		    .bind(&hashed)
+				.bind(id)
+    		    .execute(&state.db)
+    		    .await;
+
+    		match result {
+    		    Ok(_) => {
+    		        Response::empty(Status::Ok)
+    		    }
+    		    Err(e) => {
+    		        log_error("Error updating reset token", e);
+    		        Response::empty(Status::InternalServerError)
+    		    }
+    		}
+        },
+		Ok(None) => {
+			Response::empty(Status::BadRequest)
+		},
+        Err(e) => {
+            log_error("Error updating reset token", e);
+            Response::empty(Status::InternalServerError)
+        }
+    }
+}
+
+pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
+    // let content_type = request.content_type.as_deref().unwrap_or("");
+    // if !content_type.starts_with("application/json") {
+    //     return Response::empty(Status::UnsupportedMediaType);
+    // }
+
+    // let body = match request.body.as_ref() {
+    //     Some(body) => body,
+    //     None => return Response::empty(Status::BadRequest),
+    // };
+    let payload = match extract_json::<ReEmailDTO>(request) {
+        Ok(payload) => payload,
+        Err(status) => return Response::empty(status),
     };
     let token = generate_token();
     let q = "UPDATE users 
@@ -276,15 +364,32 @@ async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: Strin
     send_email(email_conf, from, to, subject, body).await
 }
 
-fn validate_login_input(login_dto: &LoginDTO) -> u8 {
+async fn prepare_reset_email(email_conf: EmailConfig, recv_email: String, token: String) {
+    let reset_link = format!("http://localhost:80/api/re-pass/verify?token={}", token);
+    let from = format!("Camagru Admin <{}>", email_conf.get_email());
+    let to = format!("<{}>", recv_email);
+    let subject = "Reset your password".to_string();
+    let body = format!(
+        "Please click the following link to reset your password: {}",
+        reset_link
+    );
+    send_email(email_conf, from, to, subject, body).await
+}
+
+enum LoginField {
+	Email,
+	Username,
+	Invalid
+}
+fn validate_login_input(login_dto: &LoginDTO) -> LoginField {
     if validate_password(login_dto.password.as_str()) {
         if validate_email(login_dto.cred.as_str()) {
-            return 1;
+            return LoginField::Email;
         } else if validate_username(login_dto.cred.as_str()) {
-            return 2;
+            return LoginField::Email;
         }
     }
-    return 0;
+    return LoginField::Invalid;
 }
 
 fn validate_register_input(register_dto: &RegisterDTO) -> bool {
@@ -294,8 +399,12 @@ fn validate_register_input(register_dto: &RegisterDTO) -> bool {
 }
 
 fn validate_email(email: &str) -> bool {
-    let email_regex = regex::Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap();
-    email_regex.is_match(email)
+	static EMAIL_REGEX: OnceLock<regex::Regex> = OnceLock::new();
+	let regex = EMAIL_REGEX.get_or_init(|| {
+        regex::Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap()
+    });
+    
+    regex.is_match(email)
 }
 
 fn validate_username(username: &str) -> bool {

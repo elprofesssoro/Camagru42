@@ -4,6 +4,10 @@ use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use sqlx::{PgPool};
 use std::io::Error;
 use std::env;
+use serde::de::DeserializeOwned;
+use serde_json::from_slice;
+
+use crate::headers::{Request, Status};
 
 pub struct AppState {
     pub db: PgPool,
@@ -71,4 +75,24 @@ macro_rules! unwrap_or_return {
             None => return crate::headers::Response::empty($status),
         }
     };
+}
+
+pub fn extract_json<T: DeserializeOwned>(request: &Request) -> Result<T, Status> {
+let content_type = request.content_type.as_deref().unwrap_or("");
+    if !content_type.starts_with("application/json") {
+        return Err(Status::UnsupportedMediaType);
+    }
+
+    let body = match request.body.as_ref() {
+        Some(body) => body,
+        None => return Err(Status::BadRequest),
+    };
+
+    match from_slice::<T>(body) {
+        Ok(payload) => Ok(payload),
+        Err(err) => {
+			log_error("Error extracting json", err);
+			Err(Status::BadRequest)
+		},
+    }
 }

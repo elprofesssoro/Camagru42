@@ -41,8 +41,8 @@ async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
             request.user_id = auth_middleware(request, state).await;
             controllers::user::me(request).await
         },
-        "login" => controllers::user::log_in_get(request).await,
-        "verify" => controllers::user::confirm(request, state).await,
+        "verify" => controllers::user::user_verify(request, state).await,
+		"re-pass/verify" => controllers::user::re_pass_verify(request, state).await,
         "gallery" => controllers::gallery::gallery(request, state).await,
         "create/history" => {
             request.user_id = auth_middleware(request, state).await;
@@ -70,6 +70,8 @@ async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response 
         },
         "register" => controllers::user::register(request, state).await,
 		"re-email" => controllers::user::re_email(request, state).await,
+		"re-pass" => controllers::user::re_pass(request, state).await,
+		"re-pass/new" => controllers::user::re_pass_new(request, state).await,
         "gallery/like" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::gallery::like(request, state).await

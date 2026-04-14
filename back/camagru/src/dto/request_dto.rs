@@ -18,3 +18,8 @@ pub struct RegisterDTO {
 pub struct ReEmailDTO {
 	pub email: String
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct RePassDTO {
+	pub password: String
+}
