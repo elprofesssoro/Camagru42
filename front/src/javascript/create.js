@@ -1,11 +1,11 @@
 async function protectPage() {
-    const isLoggedIn = await checkAuthStatus();
-    
-    if (!isLoggedIn) {
-        window.location.href = "log.html";
-    } else {
-        document.querySelector("#create-content").classList.remove("hidden");
-    }
+	const isLoggedIn = await checkAuthStatus();
+
+	if (!isLoggedIn) {
+		window.location.href = "log.html?error=unauthorized";
+	} else {
+		//document.querySelector("#create-content").classList.remove("hidden");
+	}
 }
 
 protectPage();
@@ -35,11 +35,95 @@ let frameLoopStarted = false;
 updateHistory();
 activateCamera();
 
-document.querySelector(".creations-list").addEventListener("click", (e) => {
-	if (!e.target.classList.contains("delete-btn")) {
+async function spawnCurtain(postId, imageSrc) {
+	const curtain = document.querySelector("#curtain");
+	if (!curtain) return;
+
+	let mockPostData;
+	const res = await callApi("create/details?post_id=" + postId, { method: "GET" });
+	if (res.ok) {
+		console.log("Post details loaded successfully:", res.data);
+		mockPostData = res.data;
+	}
+	else if (res.status === 401) {
+		window.location.href = "log.html?error=unauthorized";
 		return;
 	}
+	else {
+		showPopup("Failed to load post details.", "error", ".creations-list");
+		return;
+	}
+
+	let commentsHTML;
+	if (mockPostData.comments == null || mockPostData.comments.length === 0) {
+		commentsHTML = "<p>No comments yet.</p>";
+	} else {
+		commentsHTML = mockPostData.comments.map(c => `
+		<div class="comment">
+			<h2 class="comment-author">${c.username}:</h2>
+			<p class="comment-text">${c.comment}</p>
+		</div>
+	`).join('');
+	}
+
+	const dateOptions = {
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit'
+	};
+	const formattedDate = new Date(mockPostData.post_date).toLocaleString(dateOptions);
+	curtain.innerHTML = `
+		<div id="post-details">
+			<div id="post-details-box">
+				<div class="post-details-content">
+					<button id="post-close">Close</button>
+					<h2 id="post-date">${formattedDate}</h2>
+					<img id="post-image" src="${imageSrc}" alt="Post Image">
+					<div id="post-likes">
+						<h2 id="post-like-num">${mockPostData.likes}</h2>
+						<h2 id="post-like-text">Likes</h2>
+					</div>
+					<div id="comments-grid">
+						${commentsHTML}
+					</div>
+				</div>
+			</div>
+		</div>
+	`;
+
+	curtain.style.display = "flex";
+	document.body.style.overflow = "hidden";
+
+	const closeButton = curtain.querySelector('#post-close');
+	if (closeButton) {
+		closeButton.addEventListener("click", () => {
+			curtain.style.display = "none";
+			curtain.innerHTML = '';
+			document.body.style.overflow = "auto";
+		});
+	}
+}
+
+const testSpawnBtn = document.querySelector("#test-spawn-btn");
+if (testSpawnBtn) {
+	testSpawnBtn.addEventListener("click", () => {
+		spawnCurtain("999", "https://picsum.photos/400");
+	});
+}
+
+document.querySelector(".creations-list").addEventListener("click", (e) => {
 	const creation = e.target.closest(".creation");
+	if (!creation) return;
+
+	if (!e.target.classList.contains("delete-btn")) {
+		if (e.target.tagName === "IMG") {
+			spawnCurtain(creation.dataset.postId, e.target.src);
+		}
+		return;
+	}
+
 	const postId = creation.dataset.postId;
 
 	callApi("create/delete?post_id=" + postId, { method: "DELETE" })
@@ -47,7 +131,12 @@ document.querySelector(".creations-list").addEventListener("click", (e) => {
 			if (response && response.ok) {
 				creation.remove();
 				showPopup("Creation deleted successfully!", "ok", ".creations-list");
-			} else {
+			}
+			else if (response.status === 401) {
+				window.location.href = "log.html?error=unauthorized";
+				return;
+			}
+			else {
 				showPopup("Failed to delete creation.", "error", ".creations-list");
 			}
 		})
@@ -77,7 +166,12 @@ function updateHistory() {
 				`;
 				historyContainer.insertAdjacentHTML('beforeend', creationHTML);
 			});
-		} else {
+		}
+		else if (response.status === 401) {
+			window.location.href = "log.html?error=unauthorized";
+			return;
+		}
+		else {
 			console.error("Failed to load history:", response);
 		}
 	}).catch((error) => {
@@ -161,6 +255,11 @@ function clearEditorState() {
 	isStickered = false;
 	isUploaded = false;
 	hasCapturedWithSticker = false;
+
+	const checkedFilter = document.querySelector('input[name="filter"]:checked');
+	if (checkedFilter) {
+		checkedFilter.checked = false;
+	}
 }
 
 function resetImage() {
@@ -251,6 +350,11 @@ function postImage() {
 			postButton.disabled = !(isStickered && isUploaded);
 			return;
 		}
+		else if (response.status === 401) {
+			showPopup(`You are not authorized. Please log in again.`, "error", "#post-btn");
+			window.location.href = "log.html?error=unauthorized";
+			return;
+		}
 		updateHistory();
 	}).catch((error) => {
 		console.error("Failed to post image", error);
@@ -305,14 +409,14 @@ function loadStickers() {
 		.then(files => {
 			const filterList = document.querySelector(".filter-list");
 			if (!filterList) return;
-			
+
 			filterList.innerHTML = "";
-			
+
 			files.forEach((file, index) => {
 				if (file.type !== "file") return;
-				
+
 				const filename = file.name;
-				
+
 				const filterItem = `
 					<label class="filter-item">
 						<input type="radio" name="filter" value="sticker-${index}">

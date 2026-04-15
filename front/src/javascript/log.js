@@ -1,5 +1,11 @@
 'use strict'
 
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("error") === "unauthorized") {
+    showPopup("Session ended. Please log in again.", "error");
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
+
 document.querySelector("#buttonLog").addEventListener("click", logIn);
 
 async function logIn(event) {

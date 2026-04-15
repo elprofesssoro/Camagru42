@@ -18,3 +18,16 @@ pub struct HistoryDTO {
 	pub post_date: DateTime<Utc>,
 	pub id: i32
 }
+
+#[derive(Serialize, Debug, FromRow)]
+pub struct PostDetailsDTO {
+	pub post_date: DateTime<Utc>,
+	pub likes: i64,
+	pub comments: Vec<CommentDTO>
+}
+
+#[derive(Serialize, Debug, FromRow)]
+pub struct CommentDTO {
+    pub username: String,
+    pub comment: String,
+}

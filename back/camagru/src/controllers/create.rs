@@ -1,6 +1,6 @@
 use crate::controllers::user;
 use crate::headers::{Request, Response, Status};
-use crate::dto::create_dto::{CreatePostDTO, HistoryDTO};
+use crate::dto::create_dto::{CreatePostDTO, HistoryDTO, PostDetailsDTO, CommentDTO};
 use crate::utils::{AppState, extract_json, log_error};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{from_slice, to_string};
@@ -162,6 +162,65 @@ pub async fn create_delete(request: &Request, state: &AppState) -> Response {
 			Response::empty(Status::InternalServerError)
 		}
 	}
+}
+
+pub async fn create_details(request: &Request, state: &AppState) -> Response {
+	let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
+	let query = match request.query.as_ref() {
+		Some(query) => query,
+		None => return Response::empty(Status::BadRequest)
+	};
+	let post_id = match validate_delete_query(&query) {
+		Some(post_id) => post_id,
+		None => return Response::empty(Status::BadRequest)
+	};
+
+	let q_post = "
+		SELECT 
+		    post_date,
+		    (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) AS likes 
+		FROM posts WHERE id = $1;";
+	
+	let q_comments = "
+		SELECT 
+		    COALESCE(u.username, '[Deleted User]') AS username,
+		    c.comment 
+		FROM comments c
+		LEFT JOIN users u ON c.user_id = u.id
+		WHERE c.post_id = $1
+		ORDER BY c.id DESC;";
+
+	let result = tokio::try_join!(
+	    sqlx::query(q_post).bind(&post_id).fetch_one(&state.db),
+	    sqlx::query_as::<_, CommentDTO>(q_comments).bind(&post_id).fetch_all(&state.db)
+	);
+
+	match result {
+		Ok((post_details, comments)) => {
+			let response = PostDetailsDTO {
+			    post_date: post_details.get("post_date"),
+			    likes: post_details.get("likes"),
+			    comments,
+			};
+
+			match serde_json::to_string(&response) {
+       			Ok(json) => return Response::json(json),
+        		Err(e) => {
+            		log_error("Error in PostDetails serialization", e);
+            		return Response::empty(Status::InternalServerError);
+				}
+        	};
+    	},
+		Err(sqlx::Error::RowNotFound) => Response::empty(Status::NotFound),
+        Err(e) => {
+            log_error("Database error fetching post details", e);
+            Response::empty(Status::InternalServerError)
+        }
+	}
+	
 }
 
 fn process_image(

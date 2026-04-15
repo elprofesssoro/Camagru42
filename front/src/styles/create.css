@@ -309,3 +309,126 @@
 ::-webkit-scrollbar-thumb:hover {
 	background: #555;
 }
+
+#curtain {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(10, 10, 12, 0.8);
+	display: none; /* Changed to none from flex */
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}	
+
+#post-details {
+	display: flex;
+	flex-direction: column;
+	position:absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	gap: 10px;
+	width: 90%;
+	max-width: 700px;
+}
+
+#post-details-box {
+	background: #0A0A0C;
+	border: 1px solid #333;
+	padding: 20px;
+	box-shadow: 0 0 20px rgba(207, 207, 207, 0.5);
+}
+
+#post-close {
+	background: transparent;
+	border: none;
+	color: #F4F4F6;
+	font-size: 1.5rem;
+	cursor: pointer;
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	transition: all 0.2s;	
+	font-family: 'Space Grotesk', sans-serif;
+	text-transform: uppercase;
+}
+
+#post-close:hover {
+	color: #D4FF00;
+	transform: scale(1.2);
+}
+
+#post-details h2 {
+	font-family: 'Space Grotesk', sans-serif;
+	text-transform: uppercase;
+	color: #F4F4F6;
+	margin: 0;
+}
+
+#post-details p {
+	font-family: 'Roboto Mono', monospace;
+	color: #8E95A3;
+	margin: 0;
+}
+
+#post-details #post-image {
+	width: 100%;
+	height: auto;
+	border: 1px solid #333;
+	margin-top: 15px;
+}
+
+#post-details #post-likes {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	margin-top: 10px;
+}
+
+#post-details #comments-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 15px;
+	text-align: right;
+	max-height: 200px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: 10px;
+	background: #1A1A1D;
+	border: 1px solid #333;
+	word-wrap: break-word;
+	word-break: break-all;
+}
+
+#post-details #comments-grid .comment {
+	border-bottom: 1px solid #333;
+	padding-bottom: 10px;
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+}
+
+#post-details #comments-grid .comment:last-child {
+	border-bottom: none;
+}
+
+#post-details #comments-grid .comment .comment-author {
+	text-align: left;
+	margin: 0;
+	white-space: nowrap;
+	font-weight: bold;
+	order: 1;
+}
+
+#post-details #comments-grid .comment p {
+	margin: 0;
+	text-align: right;
+	flex: 1;
+	order: 2;
+	max-width: 50%;
+	padding-right: 15px;
+}

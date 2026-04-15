@@ -47,8 +47,11 @@ async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
         "create/history" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::create::create_get(request, state).await
-        }
-
+        },
+		"create/details" => {
+			request.user_id = auth_middleware(request, state).await;
+            controllers::create::create_details(request, state).await
+		},
         _ => Response::empty(Status::NotFound),
     };
     response
