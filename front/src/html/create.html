@@ -19,6 +19,7 @@
 		<span>
 			<h1>Create your image</h1>
 			<nav>
+				<button id="userInfoButton">User Info</button>
 				<a href="gallery.html">Gallery</a>
 				<button id="logoutButton">Log out</button>
 			</nav>
@@ -54,7 +55,6 @@
 
 		<aside class="side-gallery">
 			<h3>Your Pictures</h3>
-			<button id="test-spawn-btn" style="margin-bottom: 10px; cursor: pointer; color: black;">Test Spawn Detail</button>
 			<div class="creations-list">
 				<!-- <div class="creation">
 					<img src="../../pub/test2.png" alt="My Creation 1">
@@ -70,9 +70,54 @@
 				</div> -->
 			</div>
 		</aside>
+		<!-- <div id="post-details">
+			<div id="post-details-box">
+				<div class="post-details-content">
+					<button id="post-close">Close</button>
+					<h2 id="post-date">${formattedDate}</h2>
+					<img id="post-image" src="${imageSrc}" alt="Post Image">
+					<div id="post-likes">
+						<h2 id="post-like-num">${mockPostData.likes}</h2>
+						<h2 id="post-like-text">Likes</h2>
+					</div>
+					<div id="comments-grid">
+						${commentsHTML}
+					</div>
+				</div>
+			</div>
+		</div> -->
+		<div id="user-info">
+			<div id="user-info-box">
+				<button id="post-close">Close</button>
+				<h2>User Information</h2>
+				<form id="update-form">
+					<div class="info-row">
+						<label for="email">Email:</label>
+						<span class="current-info">deadplay228@gmail.com</span>
+					</div>
+					<input type="email" id="email" name="email" placeholder="Change your email address">
 
-		<div id="curtain">
-		</div>
+					<div class="info-row">
+						<label for="username">Username:</label>
+						<span class="current-info">Me1</span>
+					</div>
+					<input type="text" id="username" name="username" placeholder="Change your username (3-20 chars)">
+
+					<label for="new-password">New Password:</label>
+					<input type="password" id="new-password" name="new-password"
+						placeholder="Change your password (nums, low and up case)">
+
+					<label for="current-password">Prove your identity:</label>
+					<input type="password" id="current-password" name="current-password"
+						placeholder="Confirm your current password" required>
+
+					<button type="submit">Save Changes</button>
+				</form>
+				<button id="delete-account-btn">Delete Account</button>
+			</div>
+			<div id="curtain">
+
+			</div>
 	</main>
 
 	<footer>

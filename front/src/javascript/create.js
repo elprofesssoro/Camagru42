@@ -20,6 +20,7 @@ fileInput.addEventListener("change", uploadImage);
 postButton.addEventListener("click", postImage);
 resetButton.addEventListener("click", resetImage);
 captureButton.addEventListener("click", captureImage);
+document.querySelector("#userInfoButton").addEventListener("click", showUserInfo);
 
 let isUploaded = false;
 let isStickered = false;
@@ -105,6 +106,146 @@ async function spawnCurtain(postId, imageSrc) {
 		});
 	}
 }
+
+async function showUserInfo() {
+	const curtain = document.querySelector("#curtain");
+	if (!curtain) return;
+
+	const res = await callApi("user/info", { method: "GET" });
+	if (res.ok) {
+		console.log("User info loaded successfully:", res.data);
+		curtain.innerHTML = `
+			<div id="user-info">
+			<div id="user-info-box">
+				<button id="post-close">Close</button>
+				<h2>User Information</h2>
+				<form id="update-form">
+					<div class="info-row">
+						<label for="email">Email:</label>
+						<span class="current-info">${res.data.email}</span>
+					</div>
+					<input type="email" id="email" name="email" placeholder="Change your email address">
+
+					<div class="info-row">
+						<label for="username">Username:</label>
+						<span class="current-info">${res.data.username}</span>
+					</div>
+					<input type="text" id="username" name="username" placeholder="Change your username (3-20 chars)">
+
+					<label for="new-password">New Password:</label>
+					<input type="password" id="new-password" name="new-password"
+						placeholder="Change your password (nums, low and up case)">
+
+					<label for="current-password">Prove your identity:</label>
+					<input type="password" id="current-password" name="current-password"
+						placeholder="Confirm your current password" required>
+
+					<button type="submit">Save Changes</button>
+				</form>
+				<button id="delete-account-btn">Delete Account</button>
+			</div>
+			<div id="curtain">
+
+			</div>
+		`;
+
+		const closeButton = curtain.querySelector('#post-close');
+		if (closeButton) {
+			closeButton.addEventListener("click", () => {
+				curtain.style.display = "none";
+				curtain.innerHTML = '';
+				document.body.style.overflow = "auto";
+			});
+		}
+
+		const updateForm = curtain.querySelector("#update-form");
+		updateForm.addEventListener("submit", async (e) => {
+			e.preventDefault();
+
+			const email = updateForm.querySelector("#email").value.trim();
+			const username = updateForm.querySelector("#username").value.trim();
+			const newPassword = updateForm.querySelector("#new-password").value;
+			const currentPassword = updateForm.querySelector("#current-password").value;
+
+			const payload = {
+				email: email || undefined,
+				username: username || undefined,
+				new_password: newPassword || undefined,
+				current_password: currentPassword
+			};
+
+			const response = await callApi("user/update", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify(payload)
+			});
+
+			if (response && response.ok) {
+				showPopup("User information updated successfully!", "ok", "#update-form");
+				updateHistory();
+			} else if (response.status === 401) {
+				window.location.href = "log.html?error=unauthorized";
+				return;
+			} else {
+				showPopup("Failed to update user information. Please check your current password and try again.", "error", "#update-form");
+			}
+		});
+
+		const deleteButton = curtain.querySelector("#delete-account-btn");
+		deleteButton.addEventListener("click", async () => {
+			if (!confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+				return;
+			}
+
+			const currentPassword = prompt("Please enter your current password to confirm account deletion:");
+			if (!currentPassword) {
+				showPopup("Account deletion cancelled. Current password is required.", "error", "#delete-account-btn");
+				return;
+			}
+
+			const response = await callApi("user/delete", {
+				method: "DELETE",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({ current_password: currentPassword })
+			});
+
+			if (response && response.ok) {
+				showPopup("Account deleted successfully. Redirecting to login page...", "ok", "#delete-account-btn");
+				setTimeout(() => {
+					window.location.href = "log.html";
+				}, 2000);
+			} else if (response.status === 401) {
+				window.location.href = "log.html?error=unauthorized";
+				return;
+			} else {
+				showPopup("Failed to delete account. Please check your current password and try again.", "error", "#delete-account-btn");
+			}
+		});
+
+		curtain.style.display = "flex";
+		document.body.style.overflow = "hidden";
+	}
+	else if (res.status === 401) {
+		window.location.href = "log.html?error=unauthorized";
+		return;
+	}
+	else {
+		showPopup("Failed to load user info.", "error", ".creations-list");
+		return;
+	}
+}
+
+document.querySelector("#logoutButton").addEventListener("click", async () => {
+	const response = await callApi("logout", { method: "POST" });
+
+	if (response && response.ok) {
+		window.location.href = "log.html";
+	}
+});
 
 const testSpawnBtn = document.querySelector("#test-spawn-btn");
 if (testSpawnBtn) {

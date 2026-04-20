@@ -317,16 +317,17 @@
 	width: 100%;
 	height: 100%;
 	background: rgba(10, 10, 12, 0.8);
-	display: none; /* Changed to none from flex */
+	display: none;
+	/* Changed to none from flex */
 	align-items: center;
 	justify-content: center;
 	z-index: 1000;
-}	
+}
 
 #post-details {
 	display: flex;
 	flex-direction: column;
-	position:absolute;
+	position: absolute;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
@@ -351,7 +352,7 @@
 	position: absolute;
 	top: 10px;
 	right: 10px;
-	transition: all 0.2s;	
+	transition: all 0.2s;
 	font-family: 'Space Grotesk', sans-serif;
 	text-transform: uppercase;
 }
@@ -431,4 +432,107 @@
 	order: 2;
 	max-width: 50%;
 	padding-right: 15px;
+}
+
+#user-info {
+	display: flex;
+	flex-direction: column;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	gap: 10px;
+	width: 90%;
+	max-width: 700px;
+}
+
+#user-info-box {
+	background: #0A0A0C;
+	border: 1px solid #333;
+	padding: 20px;
+	box-shadow: 0 0 20px rgba(207, 207, 207, 0.5);
+}
+
+#user-info h2 {
+	font-family: 'Space Grotesk', sans-serif;
+	text-transform: uppercase;
+	color: #F4F4F6;
+	margin: 0;
+}
+
+#user-info p {
+	font-family: 'Roboto Mono', monospace;
+	color: #8E95A3;
+	margin: 0;
+}
+
+#user-info #update-form {
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+	margin-top: 20px;
+}
+
+#user-info #update-form input[type="text"],
+#user-info #update-form input[type="email"],
+#user-info #update-form input[type="password"] {
+	padding: 10px;
+	border: 1px solid #333;
+	background: #1A1A1D;
+	color: #F4F4F6;
+	font-family: 'Roboto Mono', monospace;
+}
+
+#user-info #update-form .info-row {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+}
+
+#user-info #update-form .current-info {
+	font-family: 'Space Grotesk', sans-serif;
+	color: #F4F4F6;
+	font-weight: bold;
+}
+
+#user-info #update-form label {
+	font-family: 'Roboto Mono', monospace;
+	color: #8E95A3;
+}
+
+#user-info #update-form button[type="submit"] {
+	background: #D4FF00;
+	color: #0A0A0C;
+	border: none;
+	padding: 12px 32px;
+	font-family: 'Space Grotesk', sans-serif;
+	font-weight: 700;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: all 0.2s;
+	font-size: 1rem;
+}
+
+#user-info #update-form button[type="submit"]:hover {
+	background: #e8ff78;
+	transform: scaleY(1.15);
+}
+
+#user-info #delete-account-btn {
+	background: transparent;
+	border: 1px solid #FF4D00;
+	color: #FF4D00;
+	font-family: 'Roboto Mono', monospace;
+	text-transform: uppercase;
+	padding: 10px;
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: all 0.2s;
+	margin-top: 20px;
+}
+
+#user-info #delete-account-btn:hover {
+	background: #FF4D00;
+	color: #0A0A0C;
+	transform: scaleY(1.15);
 }

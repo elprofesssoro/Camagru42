@@ -52,7 +52,7 @@ header nav a:hover {
 	text-decoration: none;
 }
 
-header button {
+header #logoutButton {
 	background: transparent;
 	border: 1px solid #FF4D00;
 	color: #FF4D00;
@@ -72,4 +72,22 @@ header button {
 	cursor: pointer;
 	transform: scale(1.05);
 	box-shadow: 0 0 10px rgba(255, 77, 0, 0.2);
+}
+
+
+header nav #userInfoButton {
+	color: #8E95A3;
+	background: transparent;
+	border: none;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	font-family: 'Space Grotesk', sans-serif;
+	font-weight: 700;
+	transition: color 0.2s;
+}
+
+header nav #userInfoButton:hover {
+	color: #00F0FF;
+	cursor: pointer;
+	text-decoration: none;
 }
