@@ -22,6 +22,8 @@ resetButton.addEventListener("click", resetImage);
 captureButton.addEventListener("click", captureImage);
 document.querySelector("#userInfoButton").addEventListener("click", showUserInfo);
 
+
+
 let isUploaded = false;
 let isStickered = false;
 let hasCapturedWithSticker = false;
@@ -122,20 +124,28 @@ async function showUserInfo() {
 				<form id="update-form">
 					<div class="info-row">
 						<label for="email">Email:</label>
-						<span class="current-info">${res.data.email}</span>
+						<span class="current-info" id="current-email">${res.data.email}</span>
 					</div>
 					<input type="email" id="email" name="email" placeholder="Change your email address">
 
 					<div class="info-row">
 						<label for="username">Username:</label>
-						<span class="current-info">${res.data.username}</span>
+						<span class="current-info" id="current-username">${res.data.username}</span>
 					</div>
 					<input type="text" id="username" name="username" placeholder="Change your username (3-20 chars)">
-
 					<label for="new-password">New Password:</label>
 					<input type="password" id="new-password" name="new-password"
 						placeholder="Change your password (nums, low and up case)">
-
+					<div style="display: flex; justify-content: space-between; align-items: center;">
+						<div class="info-row">
+							<label for="notify-comment">Notify on comments</label>
+							<input type="checkbox" id="notify-comment" name="notify-comment" class="checkbox" checked=${res.data.notify_comment}>
+						</div>
+						<div class="info-row">
+							<label for="show-password">Show password</label>
+							<input type="checkbox" id="show-password" name="show-password" class="checkbox" defaultChecked>
+						</div>
+					</div>
 					<label for="current-password">Prove your identity:</label>
 					<input type="password" id="current-password" name="current-password"
 						placeholder="Confirm your current password" required>
@@ -144,11 +154,7 @@ async function showUserInfo() {
 				</form>
 				<button id="delete-account-btn">Delete Account</button>
 			</div>
-			<div id="curtain">
-
-			</div>
 		`;
-
 		const closeButton = curtain.querySelector('#post-close');
 		if (closeButton) {
 			closeButton.addEventListener("click", () => {
@@ -157,7 +163,15 @@ async function showUserInfo() {
 				document.body.style.overflow = "auto";
 			});
 		}
-
+		const showPasswordCheckbox = document.getElementById('show-password');
+		const newPasswordInput = document.getElementById('new-password');
+		const initNotifyComment = document.getElementById('notify-comment').checked;
+		if (showPasswordCheckbox && newPasswordInput) {
+			showPasswordCheckbox.addEventListener('change', function () {
+				const type = this.checked ? 'text' : 'password';
+				newPasswordInput.type = type;
+			});
+		}
 		const updateForm = curtain.querySelector("#update-form");
 		updateForm.addEventListener("submit", async (e) => {
 			e.preventDefault();
@@ -166,14 +180,59 @@ async function showUserInfo() {
 			const username = updateForm.querySelector("#username").value.trim();
 			const newPassword = updateForm.querySelector("#new-password").value;
 			const currentPassword = updateForm.querySelector("#current-password").value;
-
+			const notifyComment = updateForm.querySelector("#notify-comment").checked;
 			const payload = {
 				email: email || undefined,
 				username: username || undefined,
 				new_password: newPassword || undefined,
-				current_password: currentPassword
+				current_password: currentPassword,
+				notify_comment: notifyComment !== initNotifyComment ? notifyComment : undefined
 			};
+			if (!payload.current_password) {
+				showPopup("Current password is required to update information.", "error", "#update-form");
+				return;
+			}
 
+			if (payload.email) {
+				const emailValidation = validEmail(payload.email);
+				if (emailValidation !== "1") {
+					showPopup(emailValidation, "error", "#update-form");
+					return;
+				}
+			}
+
+			if (payload.username) {
+				if (payload.username === res.data.username) {
+					payload.username = undefined;
+				}
+				else {
+					const usernameValidation = validUsername(payload.username);
+					if (usernameValidation !== "1") {
+						showPopup(usernameValidation, "error", "#update-form");
+						return;
+					}
+				}
+
+			}
+
+			if (payload.new_password) {
+				const passwordValidation = validPass(payload.new_password);
+				if (passwordValidation !== "1") {
+					showPopup(passwordValidation, "error", "#update-form");
+					return;
+				}
+			}
+
+			if (!payload.email && !payload.username && !payload.new_password && payload.notify_comment === initNotifyComment) {
+				showPopup("No changes to update.", "error", "#update-form");
+				return;
+			}
+
+			if (validPass(payload.current_password) !== "1") {
+				showPopup("Current password format is invalid.", "error", "#update-form");
+				return;
+			}
+			console.log("Updating user information with payload:", payload);
 			const response = await callApi("user/update", {
 				method: "POST",
 				headers: {
@@ -184,12 +243,30 @@ async function showUserInfo() {
 
 			if (response && response.ok) {
 				showPopup("User information updated successfully!", "ok", "#update-form");
-				updateHistory();
+				if (payload.email) {
+					updateForm.querySelector("#current-email").textContent = payload.email;
+				}
+				if (payload.username) {
+					updateForm.querySelector("#current-username").textContent = payload.username;
+				}
+				updateForm.querySelector("#username").value = "";
+				updateForm.querySelector("#new-password").value = "";
+				updateForm.querySelector("#current-password").value = "";
+				updateForm.querySelector("#email").value = "";
+				initNotifyComment = notifyComment;
+				return;
 			} else if (response.status === 401) {
 				window.location.href = "log.html?error=unauthorized";
 				return;
-			} else {
-				showPopup("Failed to update user information. Please check your current password and try again.", "error", "#update-form");
+			}
+			else if (response.status === 403) {
+				showPopup("Wrong current password.", "error", "#update-form");
+			}
+			else if (response.status === 500) {
+				showPopup("Server error occurred. Please try again later.", "error", "#update-form");
+			}
+			else {
+				showPopup("Wrong Data provided.", "error", "#update-form");
 			}
 		});
 
@@ -199,8 +276,8 @@ async function showUserInfo() {
 				return;
 			}
 
-			const currentPassword = prompt("Please enter your current password to confirm account deletion:");
-			if (!currentPassword) {
+			const password = prompt("Please enter your current password to confirm account deletion:");
+			if (!password) {
 				showPopup("Account deletion cancelled. Current password is required.", "error", "#delete-account-btn");
 				return;
 			}
@@ -210,19 +287,23 @@ async function showUserInfo() {
 				headers: {
 					"Content-Type": "application/json"
 				},
-				body: JSON.stringify({ current_password: currentPassword })
+				body: JSON.stringify({ password: password })
 			});
 
 			if (response && response.ok) {
 				showPopup("Account deleted successfully. Redirecting to login page...", "ok", "#delete-account-btn");
 				setTimeout(() => {
 					window.location.href = "log.html";
-				}, 2000);
+				}, 1000);
 			} else if (response.status === 401) {
 				window.location.href = "log.html?error=unauthorized";
 				return;
-			} else {
-				showPopup("Failed to delete account. Please check your current password and try again.", "error", "#delete-account-btn");
+			} 
+			else if (response.status === 403) {
+				showPopup("Wrong current password.", "error", "#delete-account-btn");
+			}
+			else {
+				showPopup("Failed to delete account.", "error", "#delete-account-btn");
 			}
 		});
 

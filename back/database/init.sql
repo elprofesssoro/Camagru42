@@ -7,7 +7,8 @@ CREATE TABLE users (
     verification_token VARCHAR(255),
     reset_verification_token VARCHAR(255),
     reset_expires_at TIMESTAMPTZ,
-    notify_comment BOOLEAN DEFAULT TRUE
+    notify_comment BOOLEAN DEFAULT TRUE,
+	is_deleted BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE sessions (
@@ -30,7 +31,7 @@ CREATE TABLE post_likes (
     user_id INT NOT NULL,
     post_id INT NOT NULL,
     PRIMARY KEY (user_id, post_id),
-    CONSTRAINT fk_post_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_post_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_post_likes_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 

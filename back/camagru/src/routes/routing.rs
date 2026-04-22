@@ -52,6 +52,10 @@ async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
 			request.user_id = auth_middleware(request, state).await;
             controllers::create::create_details(request, state).await
 		},
+		"user/info" => {
+			request.user_id = auth_middleware(request, state).await;
+			controllers::user::info(request, state).await
+		}
         _ => Response::empty(Status::NotFound),
     };
     response
@@ -86,7 +90,11 @@ async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response 
         "create/post" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::create::create_post(request, state).await
-        }
+        },
+		"user/update" => {
+			request.user_id = auth_middleware(request, state).await;
+			controllers::user::update(request, state).await
+		}
         _ => Response::empty(Status::NotFound),
     };
     response
@@ -104,7 +112,11 @@ async fn routing_delete(request: &mut Request, state: &Arc<AppState>) -> Respons
         "create/delete" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::create::create_delete(request, state).await
-        }
+        },
+		"user/delete" => {
+			request.user_id = auth_middleware(request, state).await;
+			controllers::user::delete(request, state).await
+		}
         _ => Response::empty(Status::NotFound),
     };
     response

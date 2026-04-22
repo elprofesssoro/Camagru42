@@ -483,11 +483,23 @@
 	font-family: 'Roboto Mono', monospace;
 }
 
+#user-info #update-form input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+}
+
 #user-info #update-form .info-row {
 	display: flex;
 	gap: 10px;
 	align-items: center;
 }
+
+/* .info-row .checkbox {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+} */
 
 #user-info #update-form .current-info {
 	font-family: 'Space Grotesk', sans-serif;

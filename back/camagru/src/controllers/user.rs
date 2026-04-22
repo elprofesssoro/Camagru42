@@ -1,4 +1,4 @@
-use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO};
+use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, UserInfoDTO, UserUpdateDTO};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
 use crate::utils::{log_error, send_email, AppState, EmailConfig, extract_json};
@@ -36,7 +36,7 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
         LoginField::Invalid => return Response::empty(Status::BadRequest),
     };
     let q = format!(
-        "SELECT id, password, is_verified FROM users WHERE {} = $1",
+        "SELECT id, password, is_verified, is_deleted FROM users WHERE {} = $1",
         search_by
     );
 
@@ -49,7 +49,10 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
         Ok(Some(row)) => {
             let db_password: String = row.get("password");
             let is_verified: bool = row.get("is_verified");
-
+			let is_deleted: bool = row.get("is_deleted");
+			if is_deleted {
+				return Response::empty(Status::Unauthorized)
+			}
             if !verify_login(&payload.password, &db_password) {
                 return Response::empty(Status::Unauthorized);
             }
@@ -352,6 +355,162 @@ pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
+pub async fn info(request: &Request, state: &Arc<AppState>) -> Response {
+	 let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
+
+	let q = "SELECT email, username, notify_comment FROM users WHERE id = $1";
+	let res = sqlx::query_as::<_, UserInfoDTO>(q)
+		.bind(user_id)
+		.fetch_one(&state.db)
+		.await;
+	match res {
+		Ok(dto) => {
+			match serde_json::to_string(&dto) {
+       			Ok(json) => return Response::json(json),
+        		Err(e) => {
+            		log_error("Error in UserInfo serialization", e);
+            		return Response::empty(Status::InternalServerError);
+				}
+        	};
+		},
+		Err(sqlx::Error::RowNotFound) => Response::empty(Status::NotFound),
+        Err(e) => {
+            log_error("Database error fetching user info details", e);
+            Response::empty(Status::InternalServerError)
+        }
+	}
+}
+
+pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
+	let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
+
+	let payload = match extract_json::<UserUpdateDTO>(request) {
+        Ok(payload) => payload,
+        Err(status) => return Response::empty(status),
+    };
+
+	if payload.email.is_none() 
+        && payload.username.is_none() 
+        && payload.notify_comment.is_none() 
+        && payload.new_password.is_none() {
+        return Response::empty(Status::BadRequest);
+    }
+	
+	let q = "SELECT password FROM users WHERE id = $1";
+	let res = sqlx::query(q)
+		.bind(user_id)
+		.fetch_one(&state.db)
+		.await;
+
+	let db_password = match res {
+		Ok(row) => row.get::<String, _>("password"),
+		Err(err)  => {
+			log_error("Error getting password from DB on update", err);
+			return Response::empty(Status::InternalServerError);
+		}
+	};
+
+	if !verify_login(&payload.current_password, &db_password) {
+		return Response::empty(Status::Forbidden);
+	}
+
+    let mut query_builder: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("UPDATE users SET ");
+	let mut separated = query_builder.separated(", ");
+
+    if let Some(email) = &payload.email {
+		if (!validate_email(email)) { return Response::empty(Status::BadRequest) }
+        separated.push("email = ").push_bind_unseparated(email);
+    }
+
+    if let Some(username) = &payload.username {
+		if (!validate_username(username)) { return Response::empty(Status::BadRequest) }
+        separated.push("username = ").push_bind_unseparated(username);
+    }
+
+    if let Some(notify) = &payload.notify_comment {
+        separated.push("notify_comment = ").push_bind_unseparated(notify);
+    }
+
+	if let Some(password) = &payload.new_password  {
+		if (!validate_password(password)) { return Response::empty(Status::BadRequest) }
+		let new_hashed = match hash_password(password) {
+        	Ok(hashed) => hashed,
+        	Err(e) => {
+        	    log_error("Error hashing a new password", e);
+        	    return Response::empty(Status::InternalServerError);
+        	}
+    	};
+        separated.push("password = ").push_bind_unseparated(new_hashed);
+	}
+
+    query_builder.push(" WHERE id = ");
+    query_builder.push_bind(user_id);
+
+    let query = query_builder.build();
+    match query.execute(&state.db).await {
+        Ok(_) => Response::empty(Status::Ok),
+        Err(e) => {
+            log_error("Database error updating user", e);
+            Response::empty(Status::InternalServerError)
+        }
+    }
+}
+
+pub async fn delete(request: &Request, state: &Arc<AppState>) -> Response {
+	let user_id = match request.user_id {
+        Some(user_id) => user_id,
+        None => return Response::cookie(Status::Unauthorized, "".to_string()),
+    };
+
+	let payload = match extract_json::<RePassDTO>(request) {
+		Ok(payload) => payload,
+		Err(status) => return Response::empty(status)
+	};
+
+	let q = "SELECT password FROM users WHERE id = $1";
+	let res = sqlx::query(q)
+		.bind(user_id)
+		.fetch_one(&state.db)
+		.await;
+
+	let db_password = match res {
+		Ok(row) => row.get::<String, _>("password"),
+		Err(err)  => {
+			log_error("Error getting password from DB on update", err);
+			return Response::empty(Status::InternalServerError);
+		}
+	};
+
+	if !verify_login(&payload.password, &db_password) {
+		return Response::empty(Status::Forbidden);
+	}
+
+	let q = "UPDATE users 
+    SET is_deleted = TRUE, 
+        email = 'deleteduser',
+        username = 'deleteduser',
+        password = 'deleted'
+    WHERE id = $1";
+	let res = sqlx::query(q)
+		.bind(user_id)
+		.execute(&state.db)
+		.await;
+
+	match res {
+		Ok(_) => Response::cookie(Status::Ok, String::new()),
+		Err(err) => {
+			log_error("Error deleting user", err);
+			Response::empty(Status::InternalServerError)
+		}
+	}
+}
+
 async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: String) {
     let verify_link = format!("http://localhost:80/api/verify?token={}", token);
     let from = format!("Camagru Admin <{}>", email_conf.get_email());
@@ -386,7 +545,7 @@ fn validate_login_input(login_dto: &LoginDTO) -> LoginField {
         if validate_email(login_dto.cred.as_str()) {
             return LoginField::Email;
         } else if validate_username(login_dto.cred.as_str()) {
-            return LoginField::Email;
+            return LoginField::Username;
         }
     }
     return LoginField::Invalid;
