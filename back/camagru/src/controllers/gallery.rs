@@ -1,7 +1,7 @@
 use crate::dto::gallery_dto::{CommentDTO, GalleryDTO, PaginatedGalleryDTO};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
-use crate::utils::{log_error, send_email, AppState, EmailConfig};
+use crate::utils::{extract_json, log_error, send_email, AppState, EmailConfig};
 use sqlx::{self};
 use std::sync::Arc;
 

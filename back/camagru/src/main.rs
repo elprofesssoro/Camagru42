@@ -5,6 +5,7 @@ mod server;
 mod routes;
 mod dto;
 mod middleware;
+mod repositories;
 use server::server;
 use std::error::Error;
 

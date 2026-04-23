@@ -2,6 +2,7 @@ use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, User
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
 use crate::utils::{log_error, send_email, AppState, EmailConfig, extract_json};
+use crate::repositories::user_repo::UserRepo;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -23,56 +24,42 @@ pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
         LoginField::Username => "username",
         LoginField::Invalid => return Response::empty(Status::BadRequest),
     };
-    let q = format!(
-        "SELECT id, password, is_verified, is_deleted FROM users WHERE {} = $1",
-        search_by
-    );
 
-    let result = sqlx::query(&q)
-        .bind(&payload.cred)
-        .fetch_optional(&state.db)
-        .await;
-
-    let (session, user_id) = match result {
-        Ok(Some(row)) => {
-            let db_password: String = row.get("password");
-            let is_verified: bool = row.get("is_verified");
-			let is_deleted: bool = row.get("is_deleted");
-			if is_deleted {
-				return Response::empty(Status::Unauthorized)
-			}
-            if !verify_login(&payload.password, &db_password) {
-                return Response::empty(Status::Unauthorized);
-            }
-            println!("DB WAS RECEIVED: {}, {}", db_password, is_verified);
-            if !is_verified {
-                return Response::empty(Status::Forbidden);
-            }
-            let id: i32 = row.get("id");
-            (generate_token(), id)
-        }
-        Ok(None) => {
-            return Response::empty(Status::Unauthorized);
-        }
+    let db_user = match UserRepo::get_user(&state.db, &payload.cred, search_by).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return Response::empty(Status::Unauthorized),
         Err(e) => {
-            log_error("Error saving user", e);
+            log_error("Error fetching user for login", e);
             return Response::empty(Status::InternalServerError);
         }
     };
 
-    session_token_insert(state, session, user_id).await
+    if db_user.is_deleted {
+        return Response::empty(Status::Unauthorized);
+    }
+    
+    if !verify_login(&payload.password, &db_user.password) {
+        return Response::empty(Status::Unauthorized);
+    }
+    
+    if !db_user.is_verified {
+        return Response::empty(Status::Forbidden);
+    }
+	
+	let session = generate_token();
+	match UserRepo::session_token_insert(&state.db, &session, db_user.id).await {
+		Ok(_) => Response::cookie(Status::Ok, session),
+        Err(e) => {
+            log_error("Error saving session token", e);
+            Response::empty(Status::InternalServerError)
+        }
+	}
 }
 
 pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
-    if request.user_id == None {
-        return Response::empty(Status::Unauthorized);
-    }
-    let q = "DELETE FROM sessions WHERE user_id = $1";
-    let result = sqlx::query(q)
-        .bind(&request.user_id)
-        .execute(&state.db)
-        .await;
-    match result {
+    let user_id = unwrap_or_return!(request.user_id, Status::Unauthorized);
+
+    match UserRepo::delete_session(&state.db, user_id).await {
         Ok(_) => Response::cookie(Status::Ok, String::new()),
         Err(err) => {
             log_error("Database error deleting session token (log_out)", err);
@@ -97,18 +84,19 @@ pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
             return Response::empty(Status::InternalServerError);
         }
     };
-    let v_token = generate_token();
-    let q =
-        "INSERT INTO users (email, username, password, verification_token) VALUES ($1, $2, $3, $4)";
-    let result = sqlx::query(&q)
-        .bind(&payload.email)
-        .bind(&payload.username)
-        .bind(&hashed)
-        .bind(&v_token)
-        .execute(&state.db)
-        .await;
 
-    match result {
+    let v_token = generate_token();
+    // let q =
+    //     "INSERT INTO users (email, username, password, verification_token) VALUES ($1, $2, $3, $4)";
+    // let result = sqlx::query(&q)
+    //     .bind(&payload.email)
+    //     .bind(&payload.username)
+    //     .bind(&hashed)
+    //     .bind(&v_token)
+    //     .execute(&state.db)
+    //     .await;
+
+    match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
         Ok(_) => {
             let email = payload.email.clone();
             let v_token = v_token.clone();
@@ -421,14 +409,8 @@ pub async fn delete(request: &Request, state: &Arc<AppState>) -> Response {
 		Err(status) => return Response::empty(status)
 	};
 
-	let q = "SELECT password FROM users WHERE id = $1";
-	let res = sqlx::query(q)
-		.bind(user_id)
-		.fetch_one(&state.db)
-		.await;
-
-	let db_password = match res {
-		Ok(row) => row.get::<String, _>("password"),
+	let db_password = match UserRepo::get_password(&state.db, user_id).await {
+		Ok(password) => password,
 		Err(err)  => {
 			log_error("Error getting password from DB on update", err);
 			return Response::empty(Status::InternalServerError);
@@ -439,24 +421,24 @@ pub async fn delete(request: &Request, state: &Arc<AppState>) -> Response {
 		return Response::empty(Status::Forbidden);
 	}
 
-	let dummy_email = format!("deleted_{}@camagru.local", user_id);
-    let dummy_username = format!("deleted_{}", user_id);
+	// let dummy_email = format!("deleted_{}@camagru.local", user_id);
+    // let dummy_username = format!("deleted_{}", user_id);
 
-    let q = "UPDATE users 
-    SET is_deleted = TRUE, 
-        email = $1,
-        username = $2,
-        password = ''
-    WHERE id = $3";
+    // let q = "UPDATE users 
+    // SET is_deleted = TRUE, 
+    //     email = $1,
+    //     username = $2,
+    //     password = ''
+    // WHERE id = $3";
     
-    let res = sqlx::query(q)
-        .bind(dummy_email)
-        .bind(dummy_username)
-        .bind(user_id)
-        .execute(&state.db)
-        .await;
+    // let res = sqlx::query(q)
+    //     .bind(dummy_email)
+    //     .bind(dummy_username)
+    //     .bind(user_id)
+    //     .execute(&state.db)
+    //     .await;
 
-	match res {
+	match UserRepo::delete_user(&state.db, user_id).await {
 		Ok(_) => Response::cookie(Status::Ok, String::new()),
 		Err(err) => {
 			log_error("Error deleting user", err);
