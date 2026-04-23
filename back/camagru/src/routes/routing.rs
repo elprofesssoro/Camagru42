@@ -8,35 +8,19 @@ pub async fn route(request: &mut Request, state: &Arc<AppState>) -> Response {
     if request.content_length < 100 {
         println!("{:?}", request);
     }
-    match request.method.as_str() {
+	
+	match request.method.as_str() {
         "OPTIONS" => Response::empty(Status::Ok),
-        "GET" => {
-            println!("Handling a GET request for path: {}", request.path);
-            routing_get(request, state).await
-        }
-        "POST" => {
-            println!("Handling a POST request for path: {}", request.path);
-            routing_post(request, state).await
-        }
-        "DELETE" => {
-            println!("Handling a DELETE request for path: {}", request.path);
-            routing_delete(request, state).await
-        }
-        _ => {
-            println!("Unknown or unsupported method: {}", request.method);
-            Response::empty(Status::BadRequest)
-        }
+        "GET" => routing_get(request, state).await,
+        "POST" => routing_post(request, state).await,
+        "DELETE" => routing_delete(request, state).await,
+        _ => Response::empty(Status::BadRequest)
     }
 }
 
 async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
-    let route = match request.path.strip_prefix("/api/") {
-        Some(route) => route,
-        None => {
-            return Response::empty(Status::NotFound);
-        }
-    };
-    let response = match route {
+    let route = request.path.strip_prefix("/api/").unwrap_or(&request.path);
+	match route {
         "me" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::user::me(request).await
@@ -57,19 +41,12 @@ async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
 			controllers::user::info(request, state).await
 		}
         _ => Response::empty(Status::NotFound),
-    };
-    response
+    }
 }
 
 async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response {
-    let route = match request.path.strip_prefix("/api/") {
-        Some(route) => route,
-        None => {
-            return Response::empty(Status::NotFound);
-        }
-    };
-
-    let response = match route {
+	let route = request.path.strip_prefix("/api/").unwrap_or(&request.path);
+	match route {
         "login" => controllers::user::log_in_post(request, state).await,
         "logout" => {
             request.user_id = auth_middleware(request, state).await;
@@ -96,19 +73,12 @@ async fn routing_post(request: &mut Request, state: &Arc<AppState>) -> Response 
 			controllers::user::update(request, state).await
 		}
         _ => Response::empty(Status::NotFound),
-    };
-    response
+    }
 }
 
 async fn routing_delete(request: &mut Request, state: &Arc<AppState>) -> Response {
-    let route = match request.path.strip_prefix("/api/") {
-        Some(route) => route,
-        None => {
-            return Response::empty(Status::NotFound);
-        }
-    };
-
-    let response = match route {
+    let route = request.path.strip_prefix("/api/").unwrap_or(&request.path);
+    match route {
         "create/delete" => {
             request.user_id = auth_middleware(request, state).await;
             controllers::create::create_delete(request, state).await
@@ -118,6 +88,5 @@ async fn routing_delete(request: &mut Request, state: &Arc<AppState>) -> Respons
 			controllers::user::delete(request, state).await
 		}
         _ => Response::empty(Status::NotFound),
-    };
-    response
+    }
 }

@@ -1,38 +1,32 @@
-use crate::controllers::user;
-use crate::headers::{Request, Response, Status};
 use crate::dto::create_dto::{CreatePostDTO, HistoryDTO, PostDetailsDTO, CommentDTO};
-use crate::utils::{AppState, extract_json, log_error};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use serde_json::{from_slice, to_string};
+use crate::headers::{Request, Response, Status};
+use crate::unwrap_or_return;
+use crate::utils::{extract_json, log_error, AppState};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use std::sync::Arc;
 use sqlx::Row;
-use std::sync::{Arc, OnceLock};
-use image;
-use chrono::{DateTime, Utc};
 
-pub async fn create_post(request: &Request, state: &AppState) -> Response {
+pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
     let user_id = match request.user_id {
         Some(user_id) => user_id,
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
-	// let content_type = request.content_type.as_deref().unwrap_or("");
 
-    // if !content_type.starts_with("application/json") {
-    //     return Response::empty(Status::UnsupportedMediaType);
-    // }
+    let payload = match extract_json::<CreatePostDTO>(request) {
+        Ok(res) => res,
+        Err(status) => return Response::empty(status),
+    };
 
-	// let body = match request.body.as_ref() {
-	// 	Some(body) => body,
-	// 	None => return Response::empty(Status::BadRequest)
-	// };
-
-	let payload = match extract_json::<CreatePostDTO>(request) {
-		Ok(res) => res,
-		Err(status) => return Response::empty(status)
-	};
-	let image_str = payload.image.split_once(',').map(|(_, data)| data.to_string()).unwrap_or(payload.image);
+    let image_str = payload
+        .image
+        .split_once(',')
+        .map(|(_, data)| data.to_string())
+        .unwrap_or(payload.image);
+        
     let sticker_name = payload.sticker_name;
     let (pos_x, pos_y, width, height) = (payload.pos_x, payload.pos_y, payload.width, payload.height);
     let pub_path = request.pub_path.clone();
+
     let process_result = tokio::task::spawn_blocking(move || {
         process_image(
             &image_str,
@@ -43,184 +37,150 @@ pub async fn create_post(request: &Request, state: &AppState) -> Response {
             pos_x as i64,
             pos_y as i64,
         )
-    }).await;
+    })
+    .await;
 
-	
     let image_name = match process_result {
         Ok(Ok(image_name)) => {
             println!("Image successfully processed in background and saved to {}", image_name);
-			image_name
-		},
-        Ok(Err(status)) => return Response::empty(status), 
-        Err(err) =>{
-			log_error("Error saving image", err);
-			return Response::empty(Status::InternalServerError)
-		} ,
+            image_name
+        }
+        Ok(Err(status)) => return Response::empty(status),
+        Err(err) => {
+            log_error("Error joining thread for image processing", err);
+            return Response::empty(Status::InternalServerError);
+        }
     };
 
-	let q = "INSERT INTO posts (user_id, image_path) VALUES ($1, $2)";
-	let result = sqlx::query(q)
-		.bind(user_id)
-		.bind(&image_name)
-		.execute(&state.db)
-		.await;
+    let q = "INSERT INTO posts (user_id, image_path) VALUES ($1, $2)";
+    let result = sqlx::query(q)
+        .bind(user_id)
+        .bind(&image_name)
+        .execute(&state.db)
+        .await;
 
-	match result {
-		Ok(_) => Response::empty(Status::Ok),
-		Err(err) => {
-			log_error("Create - 65", err);
-			Response::empty(Status::InternalServerError)
-		}
-	}
+    match result {
+        Ok(_) => Response::empty(Status::Ok),
+        Err(err) => {
+            log_error("Database error saving post", err);
+            Response::empty(Status::InternalServerError)
+        }
+    }
 }
 
-pub async fn create_get(request: &Request, state: &AppState) -> Response {
+pub async fn create_get(request: &Request, state: &Arc<AppState>) -> Response {
     let user_id = match request.user_id {
         Some(user_id) => user_id,
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
 
-	let q = "SELECT image_path, post_date, id FROM posts WHERE user_id = $1";
-	let posts: Vec<HistoryDTO> = match sqlx::query_as::<_, HistoryDTO>(q)
+    let q = "SELECT image_path, post_date, id FROM posts WHERE user_id = $1";
+    let posts: Vec<HistoryDTO> = match sqlx::query_as::<_, HistoryDTO>(q)
         .bind(user_id)
         .fetch_all(&state.db)
         .await
     {
         Ok(posts) => posts,
         Err(e) => {
-            log_error("Database error fetching paginated posts", e);
+            log_error("Database error fetching user posts", e);
             return Response::empty(Status::InternalServerError);
         }
     };
 
-	match serde_json::to_string(&posts) {
+    match serde_json::to_string(&posts) {
         Ok(json) => Response::json(json),
         Err(e) => {
             log_error("Error in HistoryDTO serialization", e);
             Response::empty(Status::InternalServerError)
         }
     }
-
-	// let mut history_posts = Vec::<HistoryDTO>::new();
-	
-	// for i in 0..10 {
-	// 	let post = HistoryDTO {
-	// 		image_path: format!("my_new_photo.png"),
-	// 		likes: i,
-	// 		post_id: i
-	// 	};
-	// 	history_posts.push(post)
-	// };
-	// match to_string(&history_posts){
-	// 	Ok(json) => {
-	// 		return Response::json(json)
-	// 	},
-	// 	Err(e) => {
-	// 		println!("Error parsing to string history post: {:?}", e);
-	// 		return Response::empty(Status::InternalServerError)
-	// 	}
-	// };
 }
 
-pub async fn create_delete(request: &Request, state: &AppState) -> Response {
-	let user_id = match request.user_id {
+pub async fn create_delete(request: &Request, state: &Arc<AppState>) -> Response {
+    let user_id = match request.user_id {
         Some(user_id) => user_id,
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
 
-	let query = match request.query.as_ref() {
-		Some(query) => query,
-		None => return Response::empty(Status::BadRequest)
-	};
-	let post_id = match validate_delete_query(&query) {
-		Some(post_id) => post_id,
-		None => return Response::empty(Status::BadRequest)
-	};
+    let query = unwrap_or_return!(&request.query, Status::BadRequest);
+    let post_id = unwrap_or_return!(validate_delete_query(query), Status::BadRequest);
 
-	let q = "DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING image_path";
-	let result = sqlx::query(q)
-		.bind(post_id)
-		.bind(user_id)
-		.fetch_optional(&state.db)
-		.await;
+    let q = "DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING image_path";
+    let result = sqlx::query(q)
+        .bind(post_id)
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await;
 
-	match result {
-		Ok(Some(row)) => {
-			let image_path: String = row.get("image_path");
-	        let full_file_path = format!("{}/posts/{}", request.pub_path, image_path);
-			if let Err(e) = tokio::fs::remove_file(&full_file_path).await {
+    match result {
+        Ok(Some(row)) => {
+            let image_path: String = row.get("image_path");
+            let full_file_path = format!("{}/posts/{}", request.pub_path, image_path);
+            
+            if let Err(e) = tokio::fs::remove_file(&full_file_path).await {
                 log_error("Warning: Failed to delete image file from disk", e);
             }
-			Response::empty(Status::Ok)
-
-		},
-		Ok(None) => {
-            Response::empty(Status::NotFound)
-		},
-		Err(err) => {
-			log_error("Error deleting post", err);
-			Response::empty(Status::InternalServerError)
-		}
-	}
+            Response::empty(Status::Ok)
+        }
+        Ok(None) => Response::empty(Status::NotFound),
+        Err(err) => {
+            log_error("Error deleting post", err);
+            Response::empty(Status::InternalServerError)
+        }
+    }
 }
 
-pub async fn create_details(request: &Request, state: &AppState) -> Response {
-	let user_id = match request.user_id {
+pub async fn create_details(request: &Request, state: &Arc<AppState>) -> Response {
+    let _user_id = match request.user_id {
         Some(user_id) => user_id,
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
-	let query = match request.query.as_ref() {
-		Some(query) => query,
-		None => return Response::empty(Status::BadRequest)
-	};
-	let post_id = match validate_delete_query(&query) {
-		Some(post_id) => post_id,
-		None => return Response::empty(Status::BadRequest)
-	};
 
-	let q_post = "
-		SELECT 
-		    post_date,
-		    (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) AS likes 
-		FROM posts WHERE id = $1;";
-	
-	let q_comments = "
-		SELECT 
-		    COALESCE(u.username, '[Deleted User]') AS username,
-		    c.comment 
-		FROM comments c
-		LEFT JOIN users u ON c.user_id = u.id
-		WHERE c.post_id = $1
-		ORDER BY c.id DESC;";
+    let query = unwrap_or_return!(&request.query, Status::BadRequest);
+    let post_id = unwrap_or_return!(validate_delete_query(query), Status::BadRequest);
 
-	let result = tokio::try_join!(
-	    sqlx::query(q_post).bind(&post_id).fetch_one(&state.db),
-	    sqlx::query_as::<_, CommentDTO>(q_comments).bind(&post_id).fetch_all(&state.db)
-	);
+    let q_post = "
+        SELECT 
+            post_date,
+            (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) AS likes 
+        FROM posts WHERE id = $1;";
 
-	match result {
-		Ok((post_details, comments)) => {
-			let response = PostDetailsDTO {
-			    post_date: post_details.get("post_date"),
-			    likes: post_details.get("likes"),
-			    comments,
-			};
+    let q_comments = "
+        SELECT 
+            COALESCE(u.username, '[Deleted User]') AS username,
+            c.comment 
+        FROM comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.post_id = $1
+        ORDER BY c.id DESC;";
 
-			match serde_json::to_string(&response) {
-       			Ok(json) => return Response::json(json),
-        		Err(e) => {
-            		log_error("Error in PostDetails serialization", e);
-            		return Response::empty(Status::InternalServerError);
-				}
-        	};
-    	},
-		Err(sqlx::Error::RowNotFound) => Response::empty(Status::NotFound),
+    let result = tokio::try_join!(
+        sqlx::query(q_post).bind(&post_id).fetch_one(&state.db),
+        sqlx::query_as::<_, CommentDTO>(q_comments).bind(&post_id).fetch_all(&state.db)
+    );
+
+    match result {
+        Ok((post_details, comments)) => {
+            let response = PostDetailsDTO {
+                post_date: post_details.get("post_date"),
+                likes: post_details.get("likes"),
+                comments,
+            };
+
+            match serde_json::to_string(&response) {
+                Ok(json) => Response::json(json),
+                Err(e) => {
+                    log_error("Error in PostDetails serialization", e);
+                    Response::empty(Status::InternalServerError)
+                }
+            }
+        }
+        Err(sqlx::Error::RowNotFound) => Response::empty(Status::NotFound),
         Err(e) => {
             log_error("Database error fetching post details", e);
             Response::empty(Status::InternalServerError)
         }
-	}
-	
+    }
 }
 
 fn process_image(
@@ -239,7 +199,7 @@ fn process_image(
 
     let mut img = match image::load_from_memory(&image_bytes) {
         Ok(i) => i,
-        Err(_) => return Err(Status::Unauthorized),
+        Err(_) => return Err(Status::BadRequest),
     };
 
     let sticker_path = format!("{}/stickers/{}", pub_path, sticker_name);
@@ -251,13 +211,14 @@ fn process_image(
     let sticker = image::imageops::resize(&sticker, width, height, image::imageops::FilterType::Nearest);
     image::imageops::overlay(&mut img, &sticker, pos_x, pos_y);
 
-    let img_name = format!("{}.jpg",uuid::Uuid::new_v4());
-    let final_path = format!("{}/posts/{}", pub_path, img_name); 
+    let img_name = format!("{}.jpg", uuid::Uuid::new_v4());
+    let final_path = format!("{}/posts/{}", pub_path, img_name);
+    
     if img.save(&final_path).is_err() {
         return Err(Status::InternalServerError);
     }
 
-    Ok(img_name.to_string())
+    Ok(img_name)
 }
 
 pub fn validate_delete_query(query: &str) -> Option<i32> {
@@ -267,6 +228,6 @@ pub fn validate_delete_query(query: &str) -> Option<i32> {
 
     match key {
         "post_id" => value.parse::<i32>().ok(),
-        _ => return None,
+        _ => None,
     }
 }

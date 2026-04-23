@@ -7,15 +7,7 @@ use std::sync::Arc;
 
 pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
     let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
-    // let query = match request.query.as_ref() {
-    //     Some(query) => query,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
     let (page, per_page) = unwrap_or_return!(validate_gallery_query(query), Status::BadRequest);
-    // let (page, per_page) = match validate_gallery_query(query) {
-    //     Some((page, per_page)) => (page, per_page),
-    //     None => return Response::empty(Status::BadRequest),
-    // };
 
     println!("Page: {}, Per Page: {}", page, per_page);
 
@@ -23,47 +15,44 @@ pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
     let current_page = if page == 0 { 1 } else { page } as i64;
     let offset = (current_page - 1) * safe_per_page;
 
-    let q = "SELECT COUNT(*) FROM posts";
-    let total_posts: i64 = match sqlx::query_scalar(q).fetch_one(&state.db).await {
-        Ok(count) => count,
-        Err(err) => {
-            log_error("Database error selecting amount of posts", err);
-            return Response::empty(Status::InternalServerError);
-        }
-    };
+    let q_count = "SELECT COUNT(*) FROM posts";
+    let q_posts = "
+        SELECT 
+            COALESCE(u.username, '[Deleted User]') AS author,
+            p.id AS post_id, 
+            p.image_path AS img_name,
+            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id) AS likes
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        ORDER BY p.post_date DESC
+        LIMIT $1 OFFSET $2
+    ";
 
-    let q = "
-		SELECT u.username AS author,
-			p.id AS post_id, 
-			p.image_path AS img_name,
-			(SELECT COUNT(*) FROM post_likes WHERE post_id = p.id) AS likes
-		FROM posts p
-		JOIN users u ON p.user_id = u.id
-		ORDER BY p.post_date DESC
-		LIMIT $1 OFFSET $2
-	";
-    let posts: Vec<GalleryDTO> = match sqlx::query_as::<_, GalleryDTO>(q)
-        .bind(safe_per_page)
-        .bind(offset)
-        .fetch_all(&state.db)
-        .await
-    {
-        Ok(posts) => posts,
+    let result = tokio::try_join!(
+        sqlx::query_scalar::<_, i64>(q_count).fetch_one(&state.db),
+        sqlx::query_as::<_, GalleryDTO>(q_posts)
+            .bind(safe_per_page)
+            .bind(offset)
+            .fetch_all(&state.db)
+    );
+
+    match result {
+        Ok((total_posts, posts)) => {
+            let response_data = PaginatedGalleryDTO {
+                posts,
+                total_posts: total_posts as usize,
+            };
+
+            match serde_json::to_string(&response_data) {
+                Ok(json) => Response::json(json),
+                Err(e) => {
+                    log_error("Error in PaginatedGallery serialization", e);
+                    Response::empty(Status::InternalServerError)
+                }
+            }
+        }
         Err(e) => {
             log_error("Database error fetching paginated posts", e);
-            return Response::empty(Status::InternalServerError);
-        }
-    };
-
-    let response_data = PaginatedGalleryDTO {
-        posts,
-        total_posts: total_posts as usize,
-    };
-
-    match serde_json::to_string(&response_data) {
-        Ok(json) => Response::json(json),
-        Err(e) => {
-            log_error("Error in PaginatedGallery serialization", e);
             Response::empty(Status::InternalServerError)
         }
     }
@@ -76,17 +65,7 @@ pub async fn like(request: &Request, state: &Arc<AppState>) -> Response {
     };
 
     let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
-    // let query = match request.query.as_ref() {
-    //     Some(query) => query,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
-
     let post_id = unwrap_or_return!(validate_like_query(query), Status::BadRequest);
-
-    // let post_id = match validate_like_query(query) {
-    //     Some(post_id) => post_id,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
 
     let mut tx = match state.db.begin().await {
         Ok(transaction) => transaction,
@@ -147,26 +126,11 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
     };
 
     let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
-    // let query = match request.query.as_ref() {
-    //     Some(query) => query,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
-
     let post_id = unwrap_or_return!(validate_like_query(query), Status::BadRequest);
-    // let post_id = match validate_like_query(query) {
-    //     Some(post_id) => post_id,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
 
-    let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
-    // let body = match request.body.as_ref() {
-    //     Some(body) => body,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
-
-    let comment = match serde_json::from_slice::<CommentDTO>(body) {
+    let comment = match extract_json::<CommentDTO>(request) {
         Ok(res) => res,
-        Err(_) => return Response::empty(Status::BadRequest),
+        Err(status) => return Response::empty(status),
     };
 
     let q = "INSERT INTO comments (user_id, post_id, comment) VALUES ($1, $2, $3)";
@@ -185,12 +149,16 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
                 FROM posts p 
                 JOIN users u_author ON u_author.id = p.user_id
                 JOIN users u_commenter ON u_commenter.id = $1
-                WHERE p.id = $2";
+                WHERE p.id = $2 
+                  AND u_author.notify_comment = TRUE 
+                  AND u_author.is_deleted = FALSE";
+                  
             let result = sqlx::query_as::<_, NotificationData>(q)
                 .bind(&user_id)
                 .bind(&post_id)
                 .fetch_optional(&state.db)
                 .await;
+                
             if let Ok(Some(data)) = result {
                 let email_conf = state.email_conf.clone();
                 let NotificationData {
@@ -204,15 +172,15 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
                         author_email,
                         commenter_username,
                         comment.comment,
-                    )
+                    ).await;
                 });
             }
 
-            return Response::empty(Status::Ok);
+            Response::empty(Status::Ok)
         }
         Err(err) => {
             log_error("Database error saving comment post", err);
-            return Response::empty(Status::InternalServerError);
+            Response::empty(Status::InternalServerError)
         }
     }
 }

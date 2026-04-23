@@ -12,18 +12,6 @@ use chrono::{DateTime, Utc};
 use std::sync::OnceLock;
 
 pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
-    // let content_type = request.content_type.as_deref().unwrap_or("");
-
-    // if !content_type.starts_with("application/json") {
-    //     return Response::empty(Status::UnsupportedMediaType);
-    // }
-
-    // let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
-    // // let body = match request.body.as_ref() {
-    // //     Some(body) => body,
-    // //     None => return Response::empty(Status::BadRequest),
-    // // };
-
     let payload = match extract_json::<LoginDTO>(request) {
         Ok(payload) => payload,
         Err(status) => {
@@ -94,16 +82,6 @@ pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
 }
 
 pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
-    // let content_type = request.content_type.as_deref().unwrap_or("");
-
-    // if !content_type.starts_with("application/json") {
-    //     return Response::empty(Status::UnsupportedMediaType);
-    // }
-
-    // let body = match request.body.as_ref() {
-    //     Some(body) => body,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
     let payload = match extract_json::<RegisterDTO>(request) {
         Ok(payload) => payload,
         Err(status) => return Response::empty(status),
@@ -185,17 +163,6 @@ pub async fn me(request: &Request) -> Response {
 }
 
 pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
-	// let content_type = request.content_type.as_deref().unwrap_or("");
-
-    // if !content_type.starts_with("application/json") {
-    //     return Response::empty(Status::UnsupportedMediaType);
-    // }
-
-	// let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
-    // // let body = match request.body.as_ref() {
-    // //     Some(body) => body,
-    // //     None => return Response::empty(Status::BadRequest),
-    // // };
     let payload = match extract_json::<ReEmailDTO>(request) {
         Ok(payload) => payload,
         Err(status) => return Response::empty(status),
@@ -245,16 +212,6 @@ pub async fn re_pass_verify(request: &Request, state: &Arc<AppState>) -> Respons
 }
 
 pub async fn re_pass_new(request: &Request, state: &Arc<AppState>) -> Response {
-	// let content_type = request.content_type.as_deref().unwrap_or("");
-
-    // if !content_type.starts_with("application/json") {
-    //     return Response::empty(Status::UnsupportedMediaType);
-    // }
-	// let body = unwrap_or_return!(request.body.as_ref(), Status::BadRequest);
-    // let payload = match from_slice::<RePassDTO>(body) {
-    //     Ok(payload) => payload,
-    //     Err(_) => return Response::empty(Status::BadRequest),
-    // };
 	let payload = match extract_json::<RePassDTO>(request) {
  		Ok(payload) => payload,
         Err(status) => return Response::empty(status),
@@ -307,15 +264,6 @@ pub async fn re_pass_new(request: &Request, state: &Arc<AppState>) -> Response {
 }
 
 pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
-    // let content_type = request.content_type.as_deref().unwrap_or("");
-    // if !content_type.starts_with("application/json") {
-    //     return Response::empty(Status::UnsupportedMediaType);
-    // }
-
-    // let body = match request.body.as_ref() {
-    //     Some(body) => body,
-    //     None => return Response::empty(Status::BadRequest),
-    // };
     let payload = match extract_json::<ReEmailDTO>(request) {
         Ok(payload) => payload,
         Err(status) => return Response::empty(status),
@@ -424,12 +372,12 @@ pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
 	let mut separated = query_builder.separated(", ");
 
     if let Some(email) = &payload.email {
-		if (!validate_email(email)) { return Response::empty(Status::BadRequest) }
+		if !validate_email(email) { return Response::empty(Status::BadRequest) }
         separated.push("email = ").push_bind_unseparated(email);
     }
 
     if let Some(username) = &payload.username {
-		if (!validate_username(username)) { return Response::empty(Status::BadRequest) }
+		if !validate_username(username) { return Response::empty(Status::BadRequest) }
         separated.push("username = ").push_bind_unseparated(username);
     }
 
@@ -438,7 +386,7 @@ pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
     }
 
 	if let Some(password) = &payload.new_password  {
-		if (!validate_password(password)) { return Response::empty(Status::BadRequest) }
+		if !validate_password(password) { return Response::empty(Status::BadRequest) }
 		let new_hashed = match hash_password(password) {
         	Ok(hashed) => hashed,
         	Err(e) => {
@@ -491,16 +439,22 @@ pub async fn delete(request: &Request, state: &Arc<AppState>) -> Response {
 		return Response::empty(Status::Forbidden);
 	}
 
-	let q = "UPDATE users 
+	let dummy_email = format!("deleted_{}@camagru.local", user_id);
+    let dummy_username = format!("deleted_{}", user_id);
+
+    let q = "UPDATE users 
     SET is_deleted = TRUE, 
-        email = 'deleteduser',
-        username = 'deleteduser',
-        password = 'deleted'
-    WHERE id = $1";
-	let res = sqlx::query(q)
-		.bind(user_id)
-		.execute(&state.db)
-		.await;
+        email = $1,
+        username = $2,
+        password = ''
+    WHERE id = $3";
+    
+    let res = sqlx::query(q)
+        .bind(dummy_email)
+        .bind(dummy_username)
+        .bind(user_id)
+        .execute(&state.db)
+        .await;
 
 	match res {
 		Ok(_) => Response::cookie(Status::Ok, String::new()),
@@ -639,15 +593,3 @@ pub fn token_query(query: &str) -> Option<String> {
         _ => return None,
     }
 }
-
-// fn parse_env() -> (String, String) {
-//     let username = match env::var("EMAIL_HOST") {
-//         Ok(str) => str,
-//         Err(_) => "default@gmail.com".to_string(),
-//     };
-//     let password = match env::var("PASSWORD_HOST") {
-//         Ok(str) => str,
-//         Err(_) => "123345".to_string(),
-//     };
-//     (username, password)
-// }

@@ -90,40 +90,27 @@ async fn parse_request(buf_reader: &mut BufReader<OwnedReadHalf>) -> Option<Requ
     let mut origin: String = format!("http://localhost:80"); 
 
     let mut line = String::new();
-    loop {
-        line.clear();
-        buf_reader.read_line(&mut line).await.ok()?;
-        let trimmed = line.trim();
+	loop {
+	    line.clear();
+	    buf_reader.read_line(&mut line).await.ok()?;
+	    let trimmed = line.trim();
 
-        if trimmed.is_empty() {
-            break;
-        }
+	    if trimmed.is_empty() {
+	        break;
+	    }
 
-        if trimmed.to_lowercase().starts_with("content-length:") {
-            if let Some((_, value)) = trimmed.split_once(':') {
-                content_length = value.trim().parse::<usize>().unwrap_or(0);
-            }
-        }
-
-        if trimmed.to_lowercase().starts_with("content-type:") {
-            if let Some((_, value)) = trimmed.split_once(':') {
-                content_type = match value.trim().to_string() {
-                    content_type if !content_type.is_empty() => Some(content_type),
-                    _ => None,
-                };
-            }
-        }
-        if trimmed.to_lowercase().starts_with("cookie:") {
-            if let Some((_, value)) = trimmed.split_once(':') {
-                cookie = Some(value.trim().to_string());
-            }
-        }
-        if trimmed.to_lowercase().starts_with("origin:") {
-            if let Some((_, value)) = trimmed.split_once(':') {
-                origin = value.trim().to_string();
-            }
-        }
-    }
+	    if let Some((key, value)) = trimmed.split_once(':') {
+	        let val_trimmed = value.trim();
+		
+	        match key.trim().to_lowercase().as_str() {
+	            "content-length" => content_length = val_trimmed.parse().unwrap_or(0),
+	            "content-type" => content_type = Some(val_trimmed.to_string()),
+	            "cookie" => cookie = Some(val_trimmed.to_string()),
+	            "origin" => origin = val_trimmed.to_string(),
+	            _ => {}
+	        }
+	    }
+	}
 
     let mut body_bytes = vec![0; content_length];
     if content_length > 0 {
