@@ -86,15 +86,6 @@ pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
     };
 
     let v_token = generate_token();
-    // let q =
-    //     "INSERT INTO users (email, username, password, verification_token) VALUES ($1, $2, $3, $4)";
-    // let result = sqlx::query(&q)
-    //     .bind(&payload.email)
-    //     .bind(&payload.username)
-    //     .bind(&hashed)
-    //     .bind(&v_token)
-    //     .execute(&state.db)
-    //     .await;
 
     match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
         Ok(_) => {
@@ -125,16 +116,14 @@ pub async fn user_verify(request: &Request, state: &Arc<AppState>) -> Response {
         Some(token) => token,
         None => return Response::redir("/error".to_string()),
     };
-    let q = "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE verification_token = $1";
-    let result = sqlx::query(&q).bind(&token).execute(&state.db).await;
-    match result {
-        Ok(rows) => {
-            if rows.rows_affected() == 1 {
-                return Response::redir("/econf".to_string());
-            } else {
-                Response::redir("/error".to_string())
-            }
-        }
+
+    match UserRepo::verify_user(&state.db, &token).await {
+        Ok(true) => {
+            Response::redir("/econf".to_string())
+		},
+		Ok(false) => {
+            Response::redir("/error".to_string())
+		},
         Err(e) => {
             log_error("Database error verifying user", e);
             Response::redir("/error".to_string())
@@ -159,15 +148,8 @@ pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
         return Response::empty(Status::BadRequest);
     }
     let p_token = generate_token();
-    let q =
-        "UPDATE users SET reset_verification_token = $1, reset_expires_at = NOW() + INTERVAL '5 minutes' WHERE email = $2";
-    let result = sqlx::query(&q)
-        .bind(&p_token)
-        .bind(&payload.email)
-        .execute(&state.db)
-        .await;
 
-    match result {
+    match UserRepo::reset_pass_req(&state.db, &p_token, &payload.email).await {
         Ok(res) => {
 			if (res.rows_affected() > 0){
 				let email_conf = state.email_conf.clone();
@@ -213,25 +195,10 @@ pub async fn re_pass_new(request: &Request, state: &Arc<AppState>) -> Response {
             return Response::empty(Status::InternalServerError);
         }
     };
-    let q =
-        "SELECT id FROM users WHERE reset_verification_token = $1 AND reset_expires_at > NOW()";
-    let result = sqlx::query(&q)
-        .bind(token)
-        .fetch_optional(&state.db)
-        .await;
-
-    match result {
-        Ok(Some(row)) => {
-			let id: i32 = row.get("id");
-            let q =
-      		  	"UPDATE users SET password = $1, reset_verification_token = NULL, reset_expires_at = NULL WHERE id = $2";
-    		let result = sqlx::query(&q)
-    		    .bind(&hashed)
-				.bind(id)
-    		    .execute(&state.db)
-    		    .await;
-
-    		match result {
+    
+    match UserRepo::reset_pass_verify(&state.db, &token).await {
+        Ok(Some(id)) => {
+    		match UserRepo::reset_pass_update(&state.db, &hashed, id).await {
     		    Ok(_) => {
     		        Response::empty(Status::Ok)
     		    }
@@ -257,16 +224,8 @@ pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
         Err(status) => return Response::empty(status),
     };
     let token = generate_token();
-    let q = "UPDATE users 
-		SET verification_token = $1 
-		WHERE email = $2 AND is_verified = FALSE";
-    let result = sqlx::query(&q)
-        .bind(&token)
-        .bind(&payload.email)
-        .execute(&state.db)
-        .await;
 
-    match result {
+    match UserRepo::resend_email(&state.db, &token, &payload.email).await {
         Ok(res) => {
             if res.rows_affected() == 0 {
                 return Response::empty(Status::Ok);
@@ -297,13 +256,8 @@ pub async fn info(request: &Request, state: &Arc<AppState>) -> Response {
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
 
-	let q = "SELECT email, username, notify_comment FROM users WHERE id = $1";
-	let res = sqlx::query_as::<_, UserInfoDTO>(q)
-		.bind(user_id)
-		.fetch_one(&state.db)
-		.await;
-	match res {
-		Ok(dto) => {
+	match UserRepo::user_info(&state.db, user_id).await {
+		Ok(Some(dto)) => {
 			match serde_json::to_string(&dto) {
        			Ok(json) => return Response::json(json),
         		Err(e) => {
@@ -312,7 +266,7 @@ pub async fn info(request: &Request, state: &Arc<AppState>) -> Response {
 				}
         	};
 		},
-		Err(sqlx::Error::RowNotFound) => Response::empty(Status::NotFound),
+		Ok(None) => Response::empty(Status::NotFound),
         Err(e) => {
             log_error("Database error fetching user info details", e);
             Response::empty(Status::InternalServerError)
@@ -338,14 +292,8 @@ pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
         return Response::empty(Status::BadRequest);
     }
 	
-	let q = "SELECT password FROM users WHERE id = $1";
-	let res = sqlx::query(q)
-		.bind(user_id)
-		.fetch_one(&state.db)
-		.await;
-
-	let db_password = match res {
-		Ok(row) => row.get::<String, _>("password"),
+	let db_password = match UserRepo::get_password(&state.db, user_id).await {
+		Ok(password) => password,
 		Err(err)  => {
 			log_error("Error getting password from DB on update", err);
 			return Response::empty(Status::InternalServerError);
@@ -361,35 +309,33 @@ pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
 
     if let Some(email) = &payload.email {
 		if !validate_email(email) { return Response::empty(Status::BadRequest) }
-        separated.push("email = ").push_bind_unseparated(email);
     }
 
     if let Some(username) = &payload.username {
 		if !validate_username(username) { return Response::empty(Status::BadRequest) }
-        separated.push("username = ").push_bind_unseparated(username);
     }
 
-    if let Some(notify) = &payload.notify_comment {
-        separated.push("notify_comment = ").push_bind_unseparated(notify);
-    }
-
+	let mut hashed_pass = None;
 	if let Some(password) = &payload.new_password  {
 		if !validate_password(password) { return Response::empty(Status::BadRequest) }
-		let new_hashed = match hash_password(password) {
-        	Ok(hashed) => hashed,
+		match hash_password(password) {
+        	Ok(hashed) => hashed_pass = Some(hashed),
         	Err(e) => {
         	    log_error("Error hashing a new password", e);
         	    return Response::empty(Status::InternalServerError);
         	}
     	};
-        separated.push("password = ").push_bind_unseparated(new_hashed);
 	}
 
-    query_builder.push(" WHERE id = ");
-    query_builder.push_bind(user_id);
+    let res = UserRepo::update_user(
+		&state.db, 
+		user_id,
+		payload.email.as_deref(), 
+		payload.username.as_deref(),
+		payload.notify_comment,
+		hashed_pass.as_deref()).await;
 
-    let query = query_builder.build();
-    match query.execute(&state.db).await {
+    match res {
         Ok(_) => Response::empty(Status::Ok),
         Err(e) => {
             log_error("Database error updating user", e);
@@ -420,23 +366,6 @@ pub async fn delete(request: &Request, state: &Arc<AppState>) -> Response {
 	if !verify_login(&payload.password, &db_password) {
 		return Response::empty(Status::Forbidden);
 	}
-
-	// let dummy_email = format!("deleted_{}@camagru.local", user_id);
-    // let dummy_username = format!("deleted_{}", user_id);
-
-    // let q = "UPDATE users 
-    // SET is_deleted = TRUE, 
-    //     email = $1,
-    //     username = $2,
-    //     password = ''
-    // WHERE id = $3";
-    
-    // let res = sqlx::query(q)
-    //     .bind(dummy_email)
-    //     .bind(dummy_username)
-    //     .bind(user_id)
-    //     .execute(&state.db)
-    //     .await;
 
 	match UserRepo::delete_user(&state.db, user_id).await {
 		Ok(_) => Response::cookie(Status::Ok, String::new()),

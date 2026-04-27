@@ -145,7 +145,7 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
         Ok(_) => {
             let q = "SELECT 
                     u_author.email as author_email, 
-                    u_commenter.username as commenter_name 
+                    u_commenter.username as commenter_username 
                 FROM posts p 
                 JOIN users u_author ON u_author.id = p.user_id
                 JOIN users u_commenter ON u_commenter.id = $1

@@ -1,6 +1,6 @@
-use sqlx::{PgPool, Error, FromRow};
+use sqlx::{PgPool, Error, FromRow, QueryBuilder, postgres::PgQueryResult, Postgres};
 
-use crate::dto::request_dto::RegisterDTO;
+use crate::dto::request_dto::{RegisterDTO, UserInfoDTO};
 
 #[derive(FromRow)]
 pub struct UserAuthData {
@@ -78,6 +78,95 @@ impl UserRepo {
 
 		Ok(())
 	}
+
+	pub async fn verify_user(db: &PgPool, token: &str) -> Result<bool, Error> {
+		let q = "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE verification_token = $1";
+    	let res = sqlx::query(q).bind(token).execute(db).await?;
+
+		Ok(res.rows_affected() == 1)
+	}
+
+	pub async fn reset_pass_req(db: &PgPool, p_token: &str, email: &str) -> Result<PgQueryResult, Error> {
+		let q =
+        	"UPDATE users SET reset_verification_token = $1, reset_expires_at = NOW() + INTERVAL '5 minutes' WHERE email = $2";
+    	sqlx::query(&q)
+        	.bind(p_token)
+        	.bind(email)
+        	.execute(db)
+        	.await
+	}
+	
+	pub async fn reset_pass_verify(db: &PgPool, token: &str) -> Result<Option<i32>, Error> {
+		let q =
+        	"SELECT id FROM users WHERE reset_verification_token = $1 AND reset_expires_at > NOW()";
+        let id = sqlx::query_scalar::<_, i32>(q)           
+			.bind(token)
+            .fetch_optional(db)
+            .await?;
+		Ok(id)
+	}
+	
+	pub async fn reset_pass_update(db: &PgPool, hashed: &str, id: i32) -> Result<(), Error> {
+		let q =
+      		  	"UPDATE users SET password = $1, reset_verification_token = NULL, reset_expires_at = NULL WHERE id = $2";
+    	sqlx::query(&q)
+    	    .bind(hashed)
+			.bind(id)
+    	    .execute(db)
+    	    .await?;
+		Ok(())
+	}
+
+	pub async fn resend_email(db: &PgPool, token: &str, email: &str) -> Result<PgQueryResult, Error> {
+		let q = "UPDATE users 
+			SET verification_token = $1 
+			WHERE email = $2 AND is_verified = FALSE";
+    	sqlx::query(&q)
+    	    .bind(token)
+    	    .bind(email)
+    	    .execute(db)
+    	    .await
+	}
+
+	pub async fn user_info(db: &PgPool, id: i32) -> Result<Option<UserInfoDTO>, Error> {
+		let q = "SELECT email, username, notify_comment FROM users WHERE id = $1";
+		sqlx::query_as::<_, UserInfoDTO>(q)
+			.bind(id)
+			.fetch_optional(db)
+			.await
+	}
+
+	pub async fn update_user(
+        db: &PgPool,
+        user_id: i32,
+        email: Option<&str>,
+        username: Option<&str>,
+        notify_comment: Option<bool>,
+        new_hashed_password: Option<&str>,
+    ) -> Result<(), Error> {
+        let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE users SET ");
+        let mut separated = query_builder.separated(", ");
+
+        if let Some(e) = email {
+            separated.push("email = ").push_bind_unseparated(e);
+        }
+        if let Some(u) = username {
+            separated.push("username = ").push_bind_unseparated(u);
+        }
+        if let Some(n) = notify_comment {
+            separated.push("notify_comment = ").push_bind_unseparated(n);
+        }
+        if let Some(p) = new_hashed_password {
+            separated.push("password = ").push_bind_unseparated(p);
+        }
+
+        query_builder.push(" WHERE id = ");
+        query_builder.push_bind(user_id);
+
+        query_builder.build().execute(db).await?;
+        
+        Ok(())
+    }
 
 	pub async fn delete_user(db: &PgPool, user_id: i32) -> Result<(), Error> {
 		let dummy_email = format!("deleted_{}@camagru.local", user_id);
