@@ -1,6 +1,7 @@
 use crate::dto::create_dto::{CreatePostDTO, HistoryDTO, PostDetailsDTO, CommentDTO};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
+use crate::repositories::create_repo::CreateRepo;
 use crate::utils::{extract_json, log_error, AppState};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::sync::Arc;
@@ -52,14 +53,7 @@ pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
         }
     };
 
-    let q = "INSERT INTO posts (user_id, image_path) VALUES ($1, $2)";
-    let result = sqlx::query(q)
-        .bind(user_id)
-        .bind(&image_name)
-        .execute(&state.db)
-        .await;
-
-    match result {
+    match CreateRepo::create_post(&state.db, user_id, &image_name).await {
         Ok(_) => Response::empty(Status::Ok),
         Err(err) => {
             log_error("Database error saving post", err);
@@ -74,12 +68,7 @@ pub async fn create_get(request: &Request, state: &Arc<AppState>) -> Response {
         None => return Response::cookie(Status::Unauthorized, "".to_string()),
     };
 
-    let q = "SELECT image_path, post_date, id FROM posts WHERE user_id = $1";
-    let posts: Vec<HistoryDTO> = match sqlx::query_as::<_, HistoryDTO>(q)
-        .bind(user_id)
-        .fetch_all(&state.db)
-        .await
-    {
+    let posts: Vec<HistoryDTO> = match CreateRepo::get_user_posts(&state.db, user_id).await {
         Ok(posts) => posts,
         Err(e) => {
             log_error("Database error fetching user posts", e);
@@ -105,16 +94,8 @@ pub async fn create_delete(request: &Request, state: &Arc<AppState>) -> Response
     let query = unwrap_or_return!(&request.query, Status::BadRequest);
     let post_id = unwrap_or_return!(validate_delete_query(query), Status::BadRequest);
 
-    let q = "DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING image_path";
-    let result = sqlx::query(q)
-        .bind(post_id)
-        .bind(user_id)
-        .fetch_optional(&state.db)
-        .await;
-
-    match result {
-        Ok(Some(row)) => {
-            let image_path: String = row.get("image_path");
+    match CreateRepo::delete_post(&state.db, post_id, user_id).await {
+        Ok(Some(image_path)) => {
             let full_file_path = format!("{}/posts/{}", request.pub_path, image_path);
             
             if let Err(e) = tokio::fs::remove_file(&full_file_path).await {
@@ -139,27 +120,7 @@ pub async fn create_details(request: &Request, state: &Arc<AppState>) -> Respons
     let query = unwrap_or_return!(&request.query, Status::BadRequest);
     let post_id = unwrap_or_return!(validate_delete_query(query), Status::BadRequest);
 
-    let q_post = "
-        SELECT 
-            post_date,
-            (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) AS likes 
-        FROM posts WHERE id = $1;";
-
-    let q_comments = "
-        SELECT 
-            COALESCE(u.username, '[Deleted User]') AS username,
-            c.comment 
-        FROM comments c
-        LEFT JOIN users u ON c.user_id = u.id
-        WHERE c.post_id = $1
-        ORDER BY c.id DESC;";
-
-    let result = tokio::try_join!(
-        sqlx::query(q_post).bind(&post_id).fetch_one(&state.db),
-        sqlx::query_as::<_, CommentDTO>(q_comments).bind(&post_id).fetch_all(&state.db)
-    );
-
-    match result {
+    match CreateRepo::get_post_details(&state.db, post_id).await {
         Ok((post_details, comments)) => {
             let response = PostDetailsDTO {
                 post_date: post_details.get("post_date"),
