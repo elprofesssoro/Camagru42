@@ -26,7 +26,7 @@ async fn routing_get(request: &mut Request, state: &Arc<AppState>) -> Response {
             controllers::user::me(request).await
         },
         "verify" => controllers::user::user_verify(request, state).await,
-		"re-pass/verify" => controllers::user::re_pass_verify(request, state).await,
+		"re-pass/verify" => controllers::user::re_pass_verify(request).await,
         "gallery" => controllers::gallery::gallery(request, state).await,
         "create/history" => {
             request.user_id = auth_middleware(request, state).await;

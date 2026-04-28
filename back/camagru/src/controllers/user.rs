@@ -1,4 +1,4 @@
-use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, UserInfoDTO, UserUpdateDTO};
+use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, UserUpdateDTO};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
 use crate::utils::{log_error, send_email, AppState, EmailConfig, extract_json};
@@ -6,10 +6,7 @@ use crate::repositories::user_repo::UserRepo;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use serde_json::from_slice;
-use sqlx::Row;
 use std::sync::Arc;
-use chrono::{DateTime, Utc};
 use std::sync::OnceLock;
 
 pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
@@ -151,7 +148,7 @@ pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
 
     match UserRepo::reset_pass_req(&state.db, &p_token, &payload.email).await {
         Ok(res) => {
-			if (res.rows_affected() > 0){
+			if res.rows_affected() > 0 {
 				let email_conf = state.email_conf.clone();
             	tokio::spawn(async move {
             	    prepare_reset_email(email_conf, payload.email, p_token).await;
@@ -166,7 +163,7 @@ pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
-pub async fn re_pass_verify(request: &Request, state: &Arc<AppState>) -> Response {
+pub async fn re_pass_verify(request: &Request) -> Response {
 	let query = match request.query.as_ref() {
         Some(q) => q,
         None => return Response::redir("/error".to_string()),
@@ -303,9 +300,6 @@ pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
 	if !verify_login(&payload.current_password, &db_password) {
 		return Response::empty(Status::Forbidden);
 	}
-
-    let mut query_builder: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("UPDATE users SET ");
-	let mut separated = query_builder.separated(", ");
 
     if let Some(email) = &payload.email {
 		if !validate_email(email) { return Response::empty(Status::BadRequest) }
