@@ -13,7 +13,7 @@ pub struct Request {
     pub origin: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Status {
     Ok,                   // 200
     Created,              // 201

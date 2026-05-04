@@ -24,11 +24,12 @@ build-db:
 	$(COMPOSE) build db
 rebuild-db:
 	$(COMPOSE) up -d --build db
-
+tests-backend:
+	docker run --rm -v $(CURDIR)/back/camagru:/app -w /app rust:1.94-bookworm cargo test
 logs:
 	$(COMPOSE) logs -f
 
 clean:
 	$(COMPOSE) down -v --rmi all
 
-.PHONY: all up build down stop rebuild build-frontend rebuild-frontend build-backend rebuild-backend build-db rebuild-db logs clean
+.PHONY: all up build down stop rebuild build-frontend rebuild-frontend build-backend rebuild-backend build-db rebuild-db tests-backend logs clean

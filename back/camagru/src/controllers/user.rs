@@ -498,3 +498,29 @@ pub fn token_query(query: &str) -> Option<String> {
         _ => return None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_password() {
+        assert!(validate_password("Pass1"));
+        assert!(validate_password("Secur1ty"));
+
+        assert!(!validate_password("pass"), "Zu kurz");
+        assert!(!validate_password("password123"), "Kein Großbuchstabe");
+        assert!(!validate_password("PASSWORD123"), "Kein Kleinbuchstabe");
+        assert!(!validate_password("Password"), "Keine Zahl");
+    }
+
+    #[test]
+    fn test_validate_username() {
+        assert!(validate_username("user_123"));
+        assert!(validate_username("Valid-Name"));
+
+        assert!(!validate_username("ab"), "Zu kurz");
+        assert!(!validate_username("dies_ist_ein_viel_zu_langer_name"), "Zu lang");
+        assert!(!validate_username("user@name"), "Ungültiges Sonderzeichen");
+    }
+}

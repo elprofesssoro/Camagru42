@@ -192,3 +192,64 @@ pub fn validate_delete_query(query: &str) -> Option<i32> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    const TINY_BASE64_IMAGE: &str = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+
+    #[test]
+    fn test_process_image_invalid_base64() {
+        let result = process_image(
+            "nothing", 
+            "./dummy_path", 
+            "sticker.png", 
+            100, 100, 0, 0
+        );
+        assert_eq!(result, Err(Status::BadRequest));
+    }
+
+    #[test]
+    fn test_process_image_missing_sticker() {
+        let result = process_image(
+            TINY_BASE64_IMAGE, 
+            "./dummy_path", 
+            "nothing.png", 
+            100, 100, 0, 0
+        );
+        assert_eq!(result, Err(Status::NotFound));
+    }
+
+    #[test]
+    fn test_process_image_success() {
+        let test_dir = "./test_pub_path";
+        let stickers_dir = format!("{}/stickers", test_dir);
+        let posts_dir = format!("{}/posts", test_dir);
+        
+        fs::create_dir_all(&stickers_dir).unwrap();
+        fs::create_dir_all(&posts_dir).unwrap();
+
+        let sticker_path = format!("{}/test_sticker.jpg", stickers_dir);
+        let image_bytes = STANDARD.decode(TINY_BASE64_IMAGE).unwrap();
+        fs::write(&sticker_path, &image_bytes).unwrap();
+
+        let result = process_image(
+            TINY_BASE64_IMAGE,
+            test_dir,
+            "test_sticker.jpg",
+            1, 1, 0, 0
+        );
+
+        assert!(result.is_ok(), "Picture should be processed");
+        
+        let saved_image_name = result.unwrap();
+        let expected_path = format!("{}/{}", posts_dir, saved_image_name);
+        
+        assert!(Path::new(&expected_path).exists(), "Data was not found");
+
+        fs::remove_dir_all(test_dir).unwrap();
+    }
+}

@@ -150,3 +150,37 @@ fn validate_like_query(query: &str) -> Option<i32> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_gallery_query() {
+        assert_eq!(validate_gallery_query("page=1&per_page=10"), Some((1, 10)));
+        assert_eq!(validate_gallery_query("per_page=25&page=3"), Some((3, 25)));
+
+        assert_eq!(validate_gallery_query("page=1"), None);
+        assert_eq!(validate_gallery_query("per_page=10"), None);
+        assert_eq!(validate_gallery_query(""), None);
+
+        assert_eq!(validate_gallery_query("page=eins&per_page=10"), None);
+        assert_eq!(validate_gallery_query("page=1&per_page=zehn"), None);
+
+        assert_eq!(validate_gallery_query("page=1&per_page=10&sort=desc"), None);
+        assert_eq!(validate_gallery_query("random=123"), None);
+    }
+
+    #[test]
+    fn test_validate_like_query() {
+        assert_eq!(validate_like_query("post_id=42"), Some(42));
+        assert_eq!(validate_like_query("post_id=0"), Some(0));
+
+        assert_eq!(validate_like_query("post_id=abc"), None);
+        assert_eq!(validate_like_query("post_id="), None);
+
+        assert_eq!(validate_like_query("id=42"), None);
+        assert_eq!(validate_like_query("post=42"), None);
+        assert_eq!(validate_like_query(""), None);
+    }
+}

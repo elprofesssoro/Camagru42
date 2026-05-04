@@ -139,7 +139,7 @@ async function showUserInfo() {
 					<div style="display: flex; justify-content: space-between; align-items: center;">
 						<div class="info-row">
 							<label for="notify-comment">Notify on comments</label>
-							<input type="checkbox" id="notify-comment" name="notify-comment" class="checkbox" checked=${res.data.notify_comment}>
+							<input type="checkbox" id="notify-comment" name="notify-comment" class="checkbox" ${res.data.notify_comment ? "checked" : ""}>						
 						</div>
 						<div class="info-row">
 							<label for="show-password">Show password</label>
