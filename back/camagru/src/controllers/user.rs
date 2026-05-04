@@ -8,47 +8,54 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
 use std::sync::OnceLock;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response as AxumResponse};
+use axum::extract::{Json, State};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 
-pub async fn log_in_post(request: &Request, state: &Arc<AppState>) -> Response {
-    let payload = match extract_json::<LoginDTO>(request) {
-        Ok(payload) => payload,
-        Err(status) => {
-            return Response::empty(status);
-        }
-    };
+pub async fn log_in(State(state): State<Arc<AppState>>, jar: CookieJar, Json(payload): Json<LoginDTO>) -> AxumResponse {
+    // let payload = match extract_json::<LoginDTO>(request) {
+    //     Ok(payload) => payload,
+    //     Err(status) => {
+    //         return Response::empty(status);
+    //     }
+    // };
     let search_by = match validate_login_input(&payload) {
         LoginField::Email => "email",
         LoginField::Username => "username",
-        LoginField::Invalid => return Response::empty(Status::BadRequest),
+        LoginField::Invalid => return StatusCode::BAD_REQUEST.into_response(),
     };
 
     let db_user = match UserRepo::get_user(&state.db, &payload.cred, search_by).await {
         Ok(Some(user)) => user,
-        Ok(None) => return Response::empty(Status::Unauthorized),
+        Ok(None) => return StatusCode::UNAUTHORIZED.into_response(),
         Err(e) => {
             log_error("Error fetching user for login", e);
-            return Response::empty(Status::InternalServerError);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
-    if db_user.is_deleted {
-        return Response::empty(Status::Unauthorized);
-    }
-    
-    if !verify_login(&payload.password, &db_user.password) {
-        return Response::empty(Status::Unauthorized);
+    if db_user.is_deleted || !verify_login(&payload.password, &db_user.password) {
+        return StatusCode::UNAUTHORIZED.into_response();
     }
     
     if !db_user.is_verified {
-        return Response::empty(Status::Forbidden);
+        return StatusCode::FORBIDDEN.into_response();
     }
 	
 	let session = generate_token();
 	match UserRepo::session_token_insert(&state.db, &session, db_user.id).await {
-		Ok(_) => Response::cookie(Status::Ok, session),
+		Ok(_) => {
+			let mut cookie = Cookie::new("auth_token", session);
+			cookie.set_http_only(true);
+			cookie.set_path("/");
+    		cookie.set_secure(false);
+			let updated_jar = jar.add(cookie);
+			(updated_jar, StatusCode::OK).into_response()
+		},
         Err(e) => {
             log_error("Error saving session token", e);
-            Response::empty(Status::InternalServerError)
+           StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
 	}
 }
@@ -65,43 +72,73 @@ pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
-pub async fn register(request: &Request, state: &Arc<AppState>) -> Response {
-    let payload = match extract_json::<RegisterDTO>(request) {
-        Ok(payload) => payload,
-        Err(status) => return Response::empty(status),
-    };
-    println!("{:?}", payload);
-    if !validate_register_input(&payload) {
-        return Response::empty(Status::BadRequest);
+pub async fn register(State(state): State<Arc<AppState>>, Json(payload): Json<RegisterDTO>) -> impl IntoResponse {
+	if !validate_register_input(&payload) {
+        return StatusCode::BAD_REQUEST;
     }
-    let hashed = match hash_password(&payload.password) {
+	let hashed = match hash_password(&payload.password) {
         Ok(hashed) => hashed,
         Err(e) => {
             log_error("Error hashing a password", e);
-            return Response::empty(Status::InternalServerError);
+            return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
-
-    let v_token = generate_token();
-
-    match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
+	let v_token = generate_token();
+	match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
         Ok(_) => {
             let email = payload.email.clone();
             let v_token = v_token.clone();
             let email_conf = state.email_conf.clone();
+			
             tokio::spawn(async move {
                 prepare_email(email_conf, email, v_token).await;
             });
-            Response::empty(Status::Ok)
-        }
+            StatusCode::OK
+        },
         Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-            Response::empty(Status::Conflict)
-        }
+            StatusCode::CONFLICT
+        },
         Err(e) => {
             log_error("Error inserting user during registration", e);
-            Response::empty(Status::InternalServerError)
-        }
+            StatusCode::INTERNAL_SERVER_ERROR
+        },
     }
+//     let payload = match extract_json::<RegisterDTO>(request) {
+//         Ok(payload) => payload,
+//         Err(status) => return Response::empty(status),
+//     };
+//     println!("{:?}", payload);
+//     if !validate_register_input(&payload) {
+//         return Response::empty(Status::BadRequest);
+//     }
+//     let hashed = match hash_password(&payload.password) {
+//         Ok(hashed) => hashed,
+//         Err(e) => {
+//             log_error("Error hashing a password", e);
+//             return Response::empty(Status::InternalServerError);
+//         }
+//     };
+
+//     let v_token = generate_token();
+
+//     match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
+//         Ok(_) => {
+//             let email = payload.email.clone();
+//             let v_token = v_token.clone();
+//             let email_conf = state.email_conf.clone();
+//             tokio::spawn(async move {
+//                 prepare_email(email_conf, email, v_token).await;
+//             });
+//             Response::empty(Status::Ok)
+//         }
+//         Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+//             Response::empty(Status::Conflict)
+//         }
+//         Err(e) => {
+//             log_error("Error inserting user during registration", e);
+//             Response::empty(Status::InternalServerError)
+//         }
+//     }
 }
 
 pub async fn user_verify(request: &Request, state: &Arc<AppState>) -> Response {

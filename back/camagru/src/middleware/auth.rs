@@ -50,7 +50,7 @@ fn extract_session_token(cookie_header: &str) -> Option<String> {
         let trimmed_pair = cookie_pair.trim();
 
         if let Some((key, value)) = trimmed_pair.split_once('=') {
-            if key == "session_id" {
+            if key == "auth_token" {
                 return Some(value.to_string());
             }
         }
