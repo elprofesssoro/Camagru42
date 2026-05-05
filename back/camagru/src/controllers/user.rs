@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response as AxumResponse};
-use axum::extract::{Json, State};
+use axum::extract::{Json, State, Extension};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 
 pub async fn log_in(State(state): State<Arc<AppState>>, jar: CookieJar, Json(payload): Json<LoginDTO>) -> AxumResponse {
@@ -60,14 +60,18 @@ pub async fn log_in(State(state): State<Arc<AppState>>, jar: CookieJar, Json(pay
 	}
 }
 
-pub async fn log_out(request: &Request, state: &Arc<AppState>) -> Response {
-    let user_id = unwrap_or_return!(request.user_id, Status::Unauthorized);
+pub async fn log_out(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, jar: CookieJar) -> AxumResponse {
 
     match UserRepo::delete_session(&state.db, user_id).await {
-        Ok(_) => Response::cookie(Status::Ok, String::new()),
+        Ok(_) => {
+			let mut cookie = Cookie::new("auth_token", "");
+			cookie.set_path("/");
+			let updated_jar = jar.remove(cookie);
+			(updated_jar, StatusCode::OK).into_response()
+		},
         Err(err) => {
             log_error("Database error deleting session token (log_out)", err);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
@@ -165,12 +169,8 @@ pub async fn user_verify(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
-pub async fn me(request: &Request) -> Response {
-    if request.user_id == None {
-        Response::empty(Status::Unauthorized)
-    } else {
-        Response::empty(Status::Ok)
-    }
+pub async fn me() -> AxumResponse {
+    StatusCode::OK.into_response()
 }
 
 pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {

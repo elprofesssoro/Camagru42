@@ -3,10 +3,11 @@ use axum::{routing::{get, post}, Router};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::{TcpListener, TcpStream};
+use axum::middleware;
 
 use sqlx::PgPool;
 
-use crate::{controllers, headers::Request};
+use crate::{controllers, headers::Request, middleware as own_middleware};
 // use crate::routes::routing::route;
 use crate::utils::{log_error, AppState, EmailConfig};
 
@@ -37,7 +38,15 @@ pub async fn server() -> Result<(), Error> {
     };
     let shared_state = Arc::new(state);
     let listener: TcpListener = TcpListener::bind("0.0.0.0:8080").await?;
-	let app = Router::new()
+	let app = Box::new(Router::new())
+		.route("/api/logout", post(controllers::user::log_out))
+		.route("/api/gallery", get(controllers::gallery::gallery))
+		.route("/api/me", get(controllers::user::me))
+		.route("/api/gallery/like", post(controllers::gallery::like))
+		.route("/api/gallery/comment", post(controllers::gallery::comment))
+		.route("/api/create/history", get(controllers::create::create_get))
+		.route_layer((middleware::from_fn_with_state(shared_state.clone(), own_middleware::auth::auth_middleware)))
+
 		.route("/api/login", post(controllers::user::log_in))
 		.route("/api/register", post(controllers::user::register))
 		.with_state(shared_state);

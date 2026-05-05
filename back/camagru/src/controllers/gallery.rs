@@ -1,14 +1,17 @@
-use crate::dto::gallery_dto::{CommentDTO, PaginatedGalleryDTO};
+use crate::dto::gallery_dto::{CommentDTO, PaginatedGalleryDTO, PaginationQuery, PostIdQuery};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
 use crate::repositories::gallery_repo::{GalleryRepo, NotificationData};
 use crate::utils::{extract_json, log_error, send_email, AppState, EmailConfig};
 use std::sync::Arc;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response as AxumResponse};
+use axum::extract::{Json, State, Extension, Query};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 
-pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
-    let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
-    let (page, per_page) = unwrap_or_return!(validate_gallery_query(query), Status::BadRequest);
-
+pub async fn gallery(State(state): State<Arc<AppState>>, Query(query): Query<PaginationQuery>) -> AxumResponse {
+	let per_page = query.per_page.unwrap_or(5);
+    let page = query.page.unwrap_or(1);
     println!("Page: {}, Per Page: {}", page, per_page);
 
     let safe_per_page = if per_page > 50 { 50 } else { per_page } as i64;
@@ -21,58 +24,31 @@ pub async fn gallery(request: &Request, state: &Arc<AppState>) -> Response {
                 posts,
                 total_posts: total_posts as usize,
             };
-
-            match serde_json::to_string(&response_data) {
-                Ok(json) => Response::json(json),
-                Err(e) => {
-                    log_error("Error in PaginatedGallery serialization", e);
-                    Response::empty(Status::InternalServerError)
-                }
-            }
+			(StatusCode::OK, Json(response_data)).into_response()
         }
         Err(e) => {
             log_error("Database error fetching paginated posts", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
 
-pub async fn like(request: &Request, state: &Arc<AppState>) -> Response {
-    let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-    let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
-    let post_id = unwrap_or_return!(validate_like_query(query), Status::BadRequest);
-
-    match GalleryRepo::toggle_like(&state.db, user_id, post_id).await {
-        Ok(false) => Response::empty(Status::Ok),
-        Ok(true) => Response::empty(Status::Created),
+pub async fn like(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Query(query): Query<PostIdQuery>) -> impl IntoResponse {
+   
+    match GalleryRepo::toggle_like(&state.db, user_id, query.post_id).await {
+        Ok(false) => StatusCode::OK,
+        Ok(true) => StatusCode::CREATED,
         Err(err) => {
             log_error("Database error liking post", err);
-            return Response::empty(Status::InternalServerError);
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
-    let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-    let query = unwrap_or_return!(request.query.as_ref(), Status::BadRequest);
-    let post_id = unwrap_or_return!(validate_like_query(query), Status::BadRequest);
-
-    let comment = match extract_json::<CommentDTO>(request) {
-        Ok(res) => res,
-        Err(status) => return Response::empty(status),
-    };
-
-    match GalleryRepo::post_comment(&state.db, user_id, post_id, &comment.comment).await {
+pub async fn comment(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Query(query): Query<PostIdQuery>, Json(payload): Json<CommentDTO>) -> impl IntoResponse {
+    match GalleryRepo::post_comment(&state.db, user_id, query.post_id, &payload.comment).await {
         Ok(_) => {
-			let result = GalleryRepo::get_commenter_email(&state.db, user_id, post_id).await;
+			let result = GalleryRepo::get_commenter_email(&state.db, user_id, query.post_id).await;
                 
             if let Ok(Some(data)) = result {
                 let email_conf = state.email_conf.clone();
@@ -86,16 +62,16 @@ pub async fn comment(request: &Request, state: &Arc<AppState>) -> Response {
                         email_conf,
                         author_email,
                         commenter_username,
-                        comment.comment,
+                        payload.comment,
                     ).await;
                 });
             }
 
-            Response::empty(Status::Ok)
+            StatusCode::OK
         }
         Err(err) => {
             log_error("Database error saving comment post", err);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }

@@ -19,3 +19,14 @@ pub struct PaginatedGalleryDTO {
 pub struct CommentDTO {
 	pub comment: String,
 }
+
+#[derive(Deserialize)]
+pub struct PaginationQuery {
+    pub page: Option<usize>,
+    pub per_page: Option<usize>,
+}
+
+#[derive(Deserialize)]
+pub struct PostIdQuery {
+    pub post_id: i32, 
+}

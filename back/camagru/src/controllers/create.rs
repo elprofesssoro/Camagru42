@@ -6,6 +6,10 @@ use crate::utils::{extract_json, log_error, AppState};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::sync::Arc;
 use sqlx::Row;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response as AxumResponse};
+use axum::extract::{Json, State, Extension, Query};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 
 pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
     let user_id = match request.user_id {
@@ -62,27 +66,16 @@ pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
     }
 }
 
-pub async fn create_get(request: &Request, state: &Arc<AppState>) -> Response {
-    let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-    let posts: Vec<HistoryDTO> = match CreateRepo::get_user_posts(&state.db, user_id).await {
+pub async fn create_get(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>) -> AxumResponse {
+        let posts: Vec<HistoryDTO> = match CreateRepo::get_user_posts(&state.db, user_id).await {
         Ok(posts) => posts,
         Err(e) => {
             log_error("Database error fetching user posts", e);
-            return Response::empty(Status::InternalServerError);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
-    match serde_json::to_string(&posts) {
-        Ok(json) => Response::json(json),
-        Err(e) => {
-            log_error("Error in HistoryDTO serialization", e);
-            Response::empty(Status::InternalServerError)
-        }
-    }
+	(StatusCode::OK, Json(posts)).into_response()
 }
 
 pub async fn create_delete(request: &Request, state: &Arc<AppState>) -> Response {

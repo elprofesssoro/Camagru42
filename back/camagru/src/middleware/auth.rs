@@ -1,12 +1,21 @@
-use crate::headers::{Request};
-use crate::utils::{AppState, log_error};
-use chrono::{DateTime, Utc};
+use axum::{
+    extract::{State, Request},
+    http::StatusCode,
+    response::Response,
+    middleware::Next,
+};
+use axum_extra::extract::cookie::CookieJar;
 use sqlx::Row;
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
+use crate::utils::{AppState, log_error};
 
-pub async fn auth_middleware(request: &Request, state: &Arc<AppState>) -> Option<i32> {
-	let cookie_header = request.cookie.as_ref()?;
-	let session_token = extract_session_token(cookie_header)?;
+pub async fn auth_middleware(State(state): State<Arc<AppState>>, jar: CookieJar, mut request: Request, next: Next) -> Result<Response, StatusCode> {
+	let session_token = match jar.get("auth_token") {
+		Some(cookie) => cookie.value().to_string(),
+		None => return Err(StatusCode::UNAUTHORIZED)
+	};
+
 	let q = "SELECT user_id, expires_at FROM sessions WHERE session_token = $1";
     let result = sqlx::query(q)
         .bind(&session_token)
@@ -21,7 +30,7 @@ pub async fn auth_middleware(request: &Request, state: &Arc<AppState>) -> Option
             if expires_at < now {
                 let q = "DELETE FROM sessions WHERE session_token = $1";
                 let _ = sqlx::query(q).bind(&session_token).execute(&state.db).await;
-                return None;
+                return Err(StatusCode::UNAUTHORIZED);
             }
 
             if expires_at < now + chrono::Duration::days(3) {
@@ -35,12 +44,14 @@ pub async fn auth_middleware(request: &Request, state: &Arc<AppState>) -> Option
                 });
             }
 
-            Some(row.get("user_id"))
+			let user_id: i32 = row.get("user_id");
+			request.extensions_mut().insert(user_id);
+			Ok(next.run(request).await) 
         }
-        Ok(None) => None,
+        Ok(None) => Err(StatusCode::UNAUTHORIZED),
         Err(err) => {
             log_error("Database error in user auth", err);
-            None
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
