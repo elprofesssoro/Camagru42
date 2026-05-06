@@ -49,11 +49,19 @@ pub async fn server() -> Result<(), Error> {
 		.route("/api/create/post", post(controllers::create::create_post))
 		.route("/api/create/delete", delete(controllers::create::create_delete))
 		.route("/api/create/details", get(controllers::create::create_details))
+		.route("/api/user/info", get(controllers::user::info))
+		.route("/api/user/update", post(controllers::user::update))
+		.route("/api/user/delete", delete(controllers::user::delete))
 		.route_layer((middleware::from_fn_with_state(shared_state.clone(), own_middleware::auth::auth_middleware)))
 
 		.route("/api/login", post(controllers::user::log_in))
 		.route("/api/register", post(controllers::user::register))
 		.route("/api/gallery", get(controllers::gallery::gallery))
+		.route("/api/verify", get(controllers::user::user_verify))
+		.route("/api/re-pass/verify", get(controllers::user::re_pass_verify))
+		.route("/api/re-pass", post(controllers::user::re_pass))
+		.route("/api/re-pass/new", post(controllers::user::re_pass_new))
+		.route("/api/re-email", post(controllers::user::re_email))
 		.with_state(shared_state);
 	axum::serve(listener, app).await?;
 	Ok(())

@@ -1,4 +1,4 @@
-use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, UserUpdateDTO};
+use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, UserUpdateDTO, TokenQuery};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
 use crate::utils::{log_error, send_email, AppState, EmailConfig, extract_json};
@@ -9,17 +9,11 @@ use rand::{thread_rng, Rng};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response as AxumResponse};
-use axum::extract::{Json, State, Extension};
+use axum::response::{IntoResponse, Response as AxumResponse, Redirect};
+use axum::extract::{Json, State, Extension, Query};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 
 pub async fn log_in(State(state): State<Arc<AppState>>, jar: CookieJar, Json(payload): Json<LoginDTO>) -> AxumResponse {
-    // let payload = match extract_json::<LoginDTO>(request) {
-    //     Ok(payload) => payload,
-    //     Err(status) => {
-    //         return Response::empty(status);
-    //     }
-    // };
     let search_by = match validate_login_input(&payload) {
         LoginField::Email => "email",
         LoginField::Username => "username",
@@ -107,79 +101,30 @@ pub async fn register(State(state): State<Arc<AppState>>, Json(payload): Json<Re
             StatusCode::INTERNAL_SERVER_ERROR
         },
     }
-//     let payload = match extract_json::<RegisterDTO>(request) {
-//         Ok(payload) => payload,
-//         Err(status) => return Response::empty(status),
-//     };
-//     println!("{:?}", payload);
-//     if !validate_register_input(&payload) {
-//         return Response::empty(Status::BadRequest);
-//     }
-//     let hashed = match hash_password(&payload.password) {
-//         Ok(hashed) => hashed,
-//         Err(e) => {
-//             log_error("Error hashing a password", e);
-//             return Response::empty(Status::InternalServerError);
-//         }
-//     };
-
-//     let v_token = generate_token();
-
-//     match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
-//         Ok(_) => {
-//             let email = payload.email.clone();
-//             let v_token = v_token.clone();
-//             let email_conf = state.email_conf.clone();
-//             tokio::spawn(async move {
-//                 prepare_email(email_conf, email, v_token).await;
-//             });
-//             Response::empty(Status::Ok)
-//         }
-//         Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-//             Response::empty(Status::Conflict)
-//         }
-//         Err(e) => {
-//             log_error("Error inserting user during registration", e);
-//             Response::empty(Status::InternalServerError)
-//         }
-//     }
 }
 
-pub async fn user_verify(request: &Request, state: &Arc<AppState>) -> Response {
-    let query = match &request.query {
-        Some(query) => query,
-        None => return Response::redir("/error".to_string()),
-    };
-    let token = match token_query(&query) {
-        Some(token) => token,
-        None => return Response::redir("/error".to_string()),
-    };
-
-    match UserRepo::verify_user(&state.db, &token).await {
+pub async fn user_verify(State(state): State<Arc<AppState>>, Query(query): Query<TokenQuery>) -> impl IntoResponse {
+    match UserRepo::verify_user(&state.db, &query.token).await {
         Ok(true) => {
-            Response::redir("/econf".to_string())
+            Redirect::to("/econf")
 		},
 		Ok(false) => {
-            Response::redir("/error".to_string())
+            Redirect::to("/error")
 		},
         Err(e) => {
             log_error("Database error verifying user", e);
-            Response::redir("/error".to_string())
+            Redirect::to("/error")
         }
     }
 }
 
-pub async fn me() -> AxumResponse {
-    StatusCode::OK.into_response()
+pub async fn me() -> impl IntoResponse {
+    StatusCode::OK
 }
 
-pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
-    let payload = match extract_json::<ReEmailDTO>(request) {
-        Ok(payload) => payload,
-        Err(status) => return Response::empty(status),
-    };
+pub async fn re_pass(State(state): State<Arc<AppState>>, Json(payload): Json<ReEmailDTO>) -> impl IntoResponse {
     if !validate_email(&payload.email) {
-        return Response::empty(Status::BadRequest);
+        return StatusCode::BAD_REQUEST;
     }
     let p_token = generate_token();
 
@@ -191,78 +136,58 @@ pub async fn re_pass(request: &Request, state: &Arc<AppState>) -> Response {
             	    prepare_reset_email(email_conf, payload.email, p_token).await;
             	});
 			}
-            Response::empty(Status::Ok)
+           StatusCode::OK
         }
         Err(e) => {
             log_error("Error updating reset token", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-pub async fn re_pass_verify(request: &Request) -> Response {
-	let query = match request.query.as_ref() {
-        Some(q) => q,
-        None => return Response::redir("/error".to_string()),
-    };
-
-    let token = match token_query(query) {
-        Some(t) => t,
-        None => return Response::redir("/error".to_string()),
-    };
-
-    let frontend_url = format!("/resetPass?token={}", token);
-    Response::redir(frontend_url)
+pub async fn re_pass_verify(Query(query): Query<TokenQuery>) -> impl IntoResponse {
+    let frontend_url = format!("/resetPass?token={}", query.token);
+    Redirect::to(&frontend_url)
 }
 
-pub async fn re_pass_new(request: &Request, state: &Arc<AppState>) -> Response {
-	let payload = match extract_json::<RePassDTO>(request) {
- 		Ok(payload) => payload,
-        Err(status) => return Response::empty(status),
-	};
-	let query = unwrap_or_return!(&request.query, Status::BadRequest);
-	let token = unwrap_or_return!(token_query(&query), Status::BadRequest);
+pub async fn re_pass_new(State(state): State<Arc<AppState>>, Query(query): Query<TokenQuery>, Json(payload): Json<RePassDTO>) -> impl IntoResponse {	
     let hashed = match hash_password(&payload.password) {
         Ok(hashed) => hashed,
         Err(e) => {
             log_error("Error hashing a password", e);
-            return Response::empty(Status::InternalServerError);
+            return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
     
-    match UserRepo::reset_pass_verify(&state.db, &token).await {
+    match UserRepo::reset_pass_verify(&state.db, &query.token).await {
         Ok(Some(id)) => {
     		match UserRepo::reset_pass_update(&state.db, &hashed, id).await {
     		    Ok(_) => {
-    		        Response::empty(Status::Ok)
+    		        StatusCode::OK
     		    }
     		    Err(e) => {
     		        log_error("Error updating reset token", e);
-    		        Response::empty(Status::InternalServerError)
+    		        StatusCode::INTERNAL_SERVER_ERROR
     		    }
     		}
         },
 		Ok(None) => {
-			Response::empty(Status::BadRequest)
+			StatusCode::BAD_REQUEST
 		},
         Err(e) => {
             log_error("Error updating reset token", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
-    let payload = match extract_json::<ReEmailDTO>(request) {
-        Ok(payload) => payload,
-        Err(status) => return Response::empty(status),
-    };
+pub async fn re_email(State(state): State<Arc<AppState>>, Json(payload): Json<ReEmailDTO>) -> impl IntoResponse {
     let token = generate_token();
 
     match UserRepo::resend_email(&state.db, &token, &payload.email).await {
         Ok(res) => {
             if res.rows_affected() == 0 {
-                return Response::empty(Status::Ok);
+                return StatusCode::OK;
             }
 
             let email = payload.email.clone();
@@ -272,88 +197,67 @@ pub async fn re_email(request: &Request, state: &Arc<AppState>) -> Response {
             tokio::spawn(async move {
                 prepare_email(email_conf_clone, email, token).await;
             });
-            Response::empty(Status::Ok)
+            StatusCode::OK
         }
         Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-            Response::empty(Status::Conflict)
+            StatusCode::CONFLICT
         }
         Err(e) => {
             log_error("Error inserting user during registration", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-pub async fn info(request: &Request, state: &Arc<AppState>) -> Response {
-	 let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
+pub async fn info(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>) -> AxumResponse {
 	match UserRepo::user_info(&state.db, user_id).await {
 		Ok(Some(dto)) => {
-			match serde_json::to_string(&dto) {
-       			Ok(json) => return Response::json(json),
-        		Err(e) => {
-            		log_error("Error in UserInfo serialization", e);
-            		return Response::empty(Status::InternalServerError);
-				}
-        	};
+			(StatusCode::OK, Json(dto)).into_response()
 		},
-		Ok(None) => Response::empty(Status::NotFound),
+		Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
             log_error("Database error fetching user info details", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
 	}
 }
 
-pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
-	let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-	let payload = match extract_json::<UserUpdateDTO>(request) {
-        Ok(payload) => payload,
-        Err(status) => return Response::empty(status),
-    };
-
+pub async fn update(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Json(payload): Json<UserUpdateDTO>) -> impl IntoResponse {
 	if payload.email.is_none() 
         && payload.username.is_none() 
         && payload.notify_comment.is_none() 
         && payload.new_password.is_none() {
-        return Response::empty(Status::BadRequest);
+        return StatusCode::BAD_REQUEST;
     }
 	
 	let db_password = match UserRepo::get_password(&state.db, user_id).await {
 		Ok(password) => password,
 		Err(err)  => {
 			log_error("Error getting password from DB on update", err);
-			return Response::empty(Status::InternalServerError);
+			return StatusCode::INTERNAL_SERVER_ERROR;
 		}
 	};
 
 	if !verify_login(&payload.current_password, &db_password) {
-		return Response::empty(Status::Forbidden);
+		return StatusCode::FORBIDDEN;
 	}
 
     if let Some(email) = &payload.email {
-		if !validate_email(email) { return Response::empty(Status::BadRequest) }
+		if !validate_email(email) { return StatusCode::BAD_REQUEST; }
     }
 
     if let Some(username) = &payload.username {
-		if !validate_username(username) { return Response::empty(Status::BadRequest) }
+		if !validate_username(username) { return StatusCode::BAD_REQUEST; }
     }
 
 	let mut hashed_pass = None;
 	if let Some(password) = &payload.new_password  {
-		if !validate_password(password) { return Response::empty(Status::BadRequest) }
+		if !validate_password(password) { return StatusCode::BAD_REQUEST; }
 		match hash_password(password) {
         	Ok(hashed) => hashed_pass = Some(hashed),
         	Err(e) => {
         	    log_error("Error hashing a new password", e);
-        	    return Response::empty(Status::InternalServerError);
+        	    return StatusCode::INTERNAL_SERVER_ERROR;;
         	}
     	};
 	}
@@ -367,42 +271,37 @@ pub async fn update(request: &Request, state: &Arc<AppState>) -> Response {
 		hashed_pass.as_deref()).await;
 
     match res {
-        Ok(_) => Response::empty(Status::Ok),
+        Ok(_) => StatusCode::OK,
         Err(e) => {
             log_error("Database error updating user", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-pub async fn delete(request: &Request, state: &Arc<AppState>) -> Response {
-	let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-	let payload = match extract_json::<RePassDTO>(request) {
-		Ok(payload) => payload,
-		Err(status) => return Response::empty(status)
-	};
-
+pub async fn delete(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, jar: CookieJar, Json(payload): Json<RePassDTO>) -> AxumResponse {
 	let db_password = match UserRepo::get_password(&state.db, user_id).await {
 		Ok(password) => password,
 		Err(err)  => {
 			log_error("Error getting password from DB on update", err);
-			return Response::empty(Status::InternalServerError);
+			return StatusCode::INTERNAL_SERVER_ERROR.into_response();
 		}
 	};
 
 	if !verify_login(&payload.password, &db_password) {
-		return Response::empty(Status::Forbidden);
+		return StatusCode::FORBIDDEN.into_response();
 	}
 
 	match UserRepo::delete_user(&state.db, user_id).await {
-		Ok(_) => Response::cookie(Status::Ok, String::new()),
+		Ok(_) => { 
+			let mut remove_cookie = Cookie::new("auth_token", "");
+            remove_cookie.set_path("/");
+            let updated_jar = jar.remove(remove_cookie);
+            (updated_jar, StatusCode::OK).into_response()
+		},
 		Err(err) => {
 			log_error("Error deleting user", err);
-			Response::empty(Status::InternalServerError)
+			return StatusCode::INTERNAL_SERVER_ERROR.into_response();
 		}
 	}
 }

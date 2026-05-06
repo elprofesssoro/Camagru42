@@ -90,7 +90,7 @@ pub async fn create_delete(State(state): State<Arc<AppState>>, Extension(user_id
     }
 }
 
-pub async fn create_details(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Query(query): Query<PostIdQuery>) -> AxumResponse {
+pub async fn create_details(State(state): State<Arc<AppState>>, Query(query): Query<PostIdQuery>) -> AxumResponse {
     let post_id = query.post_id;
 
     match CreateRepo::get_post_details(&state.db, post_id).await {

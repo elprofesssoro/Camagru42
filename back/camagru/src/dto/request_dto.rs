@@ -39,3 +39,8 @@ pub struct UserUpdateDTO {
 	pub new_password: Option<String>,
 	pub current_password: String
 }
+
+#[derive(Deserialize)]
+pub struct TokenQuery {
+	pub token: String
+}
