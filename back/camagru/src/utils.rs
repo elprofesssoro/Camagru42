@@ -11,7 +11,8 @@ use crate::headers::{Request, Status};
 
 pub struct AppState {
     pub db: PgPool,
-	pub email_conf: EmailConfig
+	pub email_conf: EmailConfig,
+	pub img_root_dir: String
 }
 
 #[derive(Clone)]

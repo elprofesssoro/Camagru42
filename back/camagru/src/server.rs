@@ -1,5 +1,5 @@
 use std::{env, io::Error, sync::Arc};
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{get, post, delete}, Router};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::{TcpListener, TcpStream};
@@ -22,6 +22,7 @@ pub async fn server() -> Result<(), Error> {
             ));
         }
     };
+	let public_dir = env::var("PUBLIC_DIR").unwrap_or_else(|_| "../../pub".to_string());
     let email_conf = match EmailConfig::get_env() {
         Ok(conf) => conf,
         Err(err) => {
@@ -35,20 +36,24 @@ pub async fn server() -> Result<(), Error> {
     let state = AppState {
         db: conn,
         email_conf,
+		img_root_dir: public_dir
     };
     let shared_state = Arc::new(state);
     let listener: TcpListener = TcpListener::bind("0.0.0.0:8080").await?;
 	let app = Box::new(Router::new())
 		.route("/api/logout", post(controllers::user::log_out))
-		.route("/api/gallery", get(controllers::gallery::gallery))
 		.route("/api/me", get(controllers::user::me))
 		.route("/api/gallery/like", post(controllers::gallery::like))
 		.route("/api/gallery/comment", post(controllers::gallery::comment))
 		.route("/api/create/history", get(controllers::create::create_get))
+		.route("/api/create/post", post(controllers::create::create_post))
+		.route("/api/create/delete", delete(controllers::create::create_delete))
+		.route("/api/create/details", get(controllers::create::create_details))
 		.route_layer((middleware::from_fn_with_state(shared_state.clone(), own_middleware::auth::auth_middleware)))
 
 		.route("/api/login", post(controllers::user::log_in))
 		.route("/api/register", post(controllers::user::register))
+		.route("/api/gallery", get(controllers::gallery::gallery))
 		.with_state(shared_state);
 	axum::serve(listener, app).await?;
 	Ok(())

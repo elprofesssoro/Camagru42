@@ -1,4 +1,4 @@
-use crate::dto::create_dto::{CreatePostDTO, HistoryDTO, PostDetailsDTO, CommentDTO};
+use crate::dto::create_dto::{CreatePostDTO, HistoryDTO, PostDetailsDTO, CommentDTO, PostIdQuery};
 use crate::headers::{Request, Response, Status};
 use crate::unwrap_or_return;
 use crate::repositories::create_repo::CreateRepo;
@@ -11,16 +11,7 @@ use axum::response::{IntoResponse, Response as AxumResponse};
 use axum::extract::{Json, State, Extension, Query};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 
-pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
-    let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-    let payload = match extract_json::<CreatePostDTO>(request) {
-        Ok(res) => res,
-        Err(status) => return Response::empty(status),
-    };
+pub async fn create_post(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Json(payload): Json<CreatePostDTO>) -> impl IntoResponse {
 
     let image_str = payload
         .image
@@ -30,7 +21,7 @@ pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
         
     let sticker_name = payload.sticker_name;
     let (pos_x, pos_y, width, height) = (payload.pos_x, payload.pos_y, payload.width, payload.height);
-    let pub_path = request.pub_path.clone();
+    let pub_path = state.img_root_dir.clone();
 
     let process_result = tokio::task::spawn_blocking(move || {
         process_image(
@@ -50,18 +41,18 @@ pub async fn create_post(request: &Request, state: &Arc<AppState>) -> Response {
             println!("Image successfully processed in background and saved to {}", image_name);
             image_name
         }
-        Ok(Err(status)) => return Response::empty(status),
+        Ok(Err(status)) => return status,
         Err(err) => {
             log_error("Error joining thread for image processing", err);
-            return Response::empty(Status::InternalServerError);
+            return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
 
     match CreateRepo::create_post(&state.db, user_id, &image_name).await {
-        Ok(_) => Response::empty(Status::Ok),
+        Ok(_) => StatusCode::OK,
         Err(err) => {
             log_error("Database error saving post", err);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
@@ -78,40 +69,29 @@ pub async fn create_get(State(state): State<Arc<AppState>>, Extension(user_id): 
 	(StatusCode::OK, Json(posts)).into_response()
 }
 
-pub async fn create_delete(request: &Request, state: &Arc<AppState>) -> Response {
-    let user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-    let query = unwrap_or_return!(&request.query, Status::BadRequest);
-    let post_id = unwrap_or_return!(validate_delete_query(query), Status::BadRequest);
+pub async fn create_delete(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Query(query): Query<PostIdQuery>) -> impl IntoResponse {
+    
+    let post_id = query.post_id;
 
     match CreateRepo::delete_post(&state.db, post_id, user_id).await {
         Ok(Some(image_path)) => {
-            let full_file_path = format!("{}/posts/{}", request.pub_path, image_path);
+            let full_file_path = format!("{}/posts/{}", state.img_root_dir, image_path);
             
             if let Err(e) = tokio::fs::remove_file(&full_file_path).await {
                 log_error("Warning: Failed to delete image file from disk", e);
             }
-            Response::empty(Status::Ok)
+            StatusCode::OK
         }
-        Ok(None) => Response::empty(Status::NotFound),
+        Ok(None) => StatusCode::NOT_FOUND,
         Err(err) => {
             log_error("Error deleting post", err);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-pub async fn create_details(request: &Request, state: &Arc<AppState>) -> Response {
-    let _user_id = match request.user_id {
-        Some(user_id) => user_id,
-        None => return Response::cookie(Status::Unauthorized, "".to_string()),
-    };
-
-    let query = unwrap_or_return!(&request.query, Status::BadRequest);
-    let post_id = unwrap_or_return!(validate_delete_query(query), Status::BadRequest);
+pub async fn create_details(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Query(query): Query<PostIdQuery>) -> AxumResponse {
+    let post_id = query.post_id;
 
     match CreateRepo::get_post_details(&state.db, post_id).await {
         Ok((post_details, comments)) => {
@@ -121,18 +101,12 @@ pub async fn create_details(request: &Request, state: &Arc<AppState>) -> Respons
                 comments,
             };
 
-            match serde_json::to_string(&response) {
-                Ok(json) => Response::json(json),
-                Err(e) => {
-                    log_error("Error in PostDetails serialization", e);
-                    Response::empty(Status::InternalServerError)
-                }
-            }
+            (StatusCode::OK, Json(response)).into_response()
         }
-        Err(sqlx::Error::RowNotFound) => Response::empty(Status::NotFound),
+        Err(sqlx::Error::RowNotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
             log_error("Database error fetching post details", e);
-            Response::empty(Status::InternalServerError)
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
@@ -145,21 +119,21 @@ fn process_image(
     height: u32,
     pos_x: i64,
     pos_y: i64,
-) -> Result<String, Status> {
+) -> Result<String, StatusCode> {
     let image_bytes = match STANDARD.decode(image_str) {
         Ok(b) => b,
-        Err(_) => return Err(Status::BadRequest),
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
 
     let mut img = match image::load_from_memory(&image_bytes) {
         Ok(i) => i,
-        Err(_) => return Err(Status::BadRequest),
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
 
     let sticker_path = format!("{}/stickers/{}", pub_path, sticker_name);
     let sticker = match image::open(&sticker_path) {
         Ok(s) => s,
-        Err(_) => return Err(Status::NotFound),
+        Err(_) => return Err(StatusCode::NOT_FOUND),
     };
 
     let sticker = image::imageops::resize(&sticker, width, height, image::imageops::FilterType::Nearest);
@@ -169,7 +143,7 @@ fn process_image(
     let final_path = format!("{}/posts/{}", pub_path, img_name);
     
     if img.save(&final_path).is_err() {
-        return Err(Status::InternalServerError);
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     Ok(img_name)

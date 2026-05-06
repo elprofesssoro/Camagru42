@@ -31,3 +31,8 @@ pub struct CommentDTO {
     pub username: String,
     pub comment: String,
 }
+
+#[derive(Deserialize)]
+pub struct PostIdQuery {
+    pub post_id: i32, 
+}
