@@ -1,13 +1,10 @@
 use crate::dto::gallery_dto::{CommentDTO, PaginatedGalleryDTO, PaginationQuery, PostIdQuery};
-use crate::headers::{Request, Response, Status};
-use crate::unwrap_or_return;
 use crate::repositories::gallery_repo::{GalleryRepo, NotificationData};
-use crate::utils::{extract_json, log_error, send_email, AppState, EmailConfig};
+use crate::utils::{log_error, send_email, AppState, EmailConfig};
 use std::sync::Arc;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response as AxumResponse};
 use axum::extract::{Json, State, Extension, Query};
-use axum_extra::extract::cookie::{Cookie, CookieJar};
 
 pub async fn gallery(State(state): State<Arc<AppState>>, Query(query): Query<PaginationQuery>) -> AxumResponse {
 	let per_page = query.per_page.unwrap_or(5);
@@ -90,73 +87,4 @@ async fn prepare_email(
         username, comment
     );
     send_email(email_conf, from, to, subject, body).await
-}
-
-fn validate_gallery_query(query: &str) -> Option<(usize, usize)> {
-    let params: Vec<&str> = query.split('&').collect();
-    let mut page = None;
-    let mut per_page = None;
-
-    for param in params {
-        let mut key_value = param.splitn(2, '=');
-        let key = key_value.next().unwrap_or("");
-        let value = key_value.next().unwrap_or("");
-
-        match key {
-            "page" => page = value.parse::<usize>().ok(),
-            "per_page" => per_page = value.parse::<usize>().ok(),
-            _ => return None,
-        }
-    }
-
-    if let (Some(page), Some(per_page)) = (page, per_page) {
-        Some((page, per_page))
-    } else {
-        None
-    }
-}
-
-fn validate_like_query(query: &str) -> Option<i32> {
-    let mut key_value = query.splitn(2, '=');
-    let key = key_value.next().unwrap_or("");
-    let value = key_value.next().unwrap_or("");
-
-    match key {
-        "post_id" => Some(value.parse::<i32>().ok()?),
-        _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_gallery_query() {
-        assert_eq!(validate_gallery_query("page=1&per_page=10"), Some((1, 10)));
-        assert_eq!(validate_gallery_query("per_page=25&page=3"), Some((3, 25)));
-
-        assert_eq!(validate_gallery_query("page=1"), None);
-        assert_eq!(validate_gallery_query("per_page=10"), None);
-        assert_eq!(validate_gallery_query(""), None);
-
-        assert_eq!(validate_gallery_query("page=eins&per_page=10"), None);
-        assert_eq!(validate_gallery_query("page=1&per_page=zehn"), None);
-
-        assert_eq!(validate_gallery_query("page=1&per_page=10&sort=desc"), None);
-        assert_eq!(validate_gallery_query("random=123"), None);
-    }
-
-    #[test]
-    fn test_validate_like_query() {
-        assert_eq!(validate_like_query("post_id=42"), Some(42));
-        assert_eq!(validate_like_query("post_id=0"), Some(0));
-
-        assert_eq!(validate_like_query("post_id=abc"), None);
-        assert_eq!(validate_like_query("post_id="), None);
-
-        assert_eq!(validate_like_query("id=42"), None);
-        assert_eq!(validate_like_query("post=42"), None);
-        assert_eq!(validate_like_query(""), None);
-    }
 }

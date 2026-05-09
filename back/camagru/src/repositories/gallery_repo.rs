@@ -1,5 +1,5 @@
 use crate::dto::gallery_dto::GalleryDTO;
-use sqlx::{PgPool, Error, FromRow, QueryBuilder, postgres::PgQueryResult, Postgres};
+use sqlx::{PgPool, Error, FromRow};
 
 #[derive(FromRow)]
 pub struct NotificationData {
@@ -43,7 +43,7 @@ impl GalleryRepo {
     	    .await?;
 
 		if result.rows_affected() > 0 {
-              tx.commit().await;
+              tx.commit().await?;
               return Ok(false);
           }
         let q = "INSERT INTO post_likes (user_id, post_id) VALUES ($1, $2)";

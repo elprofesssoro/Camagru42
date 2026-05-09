@@ -22,7 +22,11 @@ impl CreateRepo {
             .await
     }
 
-    pub async fn delete_post(db: &PgPool, post_id: i32, user_id: i32) -> Result<Option<String>, Error> {
+    pub async fn delete_post(
+        db: &PgPool,
+        post_id: i32,
+        user_id: i32,
+    ) -> Result<Option<String>, Error> {
         let q = "DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING image_path";
         let row = sqlx::query(q)
             .bind(post_id)
@@ -54,7 +58,9 @@ impl CreateRepo {
 
         tokio::try_join!(
             sqlx::query(q_post).bind(&post_id).fetch_one(db),
-            sqlx::query_as::<_, CommentDTO>(q_comments).bind(post_id).fetch_all(db)
+            sqlx::query_as::<_, CommentDTO>(q_comments)
+                .bind(post_id)
+                .fetch_all(db)
         )
     }
 }

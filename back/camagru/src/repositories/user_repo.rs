@@ -1,4 +1,4 @@
-use sqlx::{PgPool, Error, FromRow, QueryBuilder, postgres::PgQueryResult, Postgres};
+use sqlx::{postgres::PgQueryResult, Error, FromRow, PgPool, Postgres, QueryBuilder};
 
 use crate::dto::request_dto::{RegisterDTO, UserInfoDTO};
 
@@ -13,130 +13,136 @@ pub struct UserAuthData {
 pub struct UserRepo;
 
 impl UserRepo {
-	pub async fn get_user(db: &PgPool, cred: &str, search_by: &str) -> Result<Option<UserAuthData>, Error> {
-		let q = format!(
-    	    "SELECT id, password, is_verified, is_deleted FROM users WHERE {} = $1",
-    	    search_by
-    	);
+    pub async fn get_user(
+        db: &PgPool,
+        cred: &str,
+        search_by: &str,
+    ) -> Result<Option<UserAuthData>, Error> {
+        let q = format!(
+            "SELECT id, password, is_verified, is_deleted FROM users WHERE {} = $1",
+            search_by
+        );
 
-		sqlx::query_as::<_, UserAuthData>(&q)
+        sqlx::query_as::<_, UserAuthData>(&q)
             .bind(cred)
             .fetch_optional(db)
             .await
-	}
-	
-	pub async fn get_password(db: &PgPool, user_id: i32) -> Result<String, Error> {
-		let q = "SELECT password FROM users WHERE id = $1";
-        
+    }
+
+    pub async fn get_password(db: &PgPool, user_id: i32) -> Result<String, Error> {
+        let q = "SELECT password FROM users WHERE id = $1";
+
         let password = sqlx::query_scalar::<_, String>(q)
             .bind(user_id)
             .fetch_one(db)
-            .await?; 
+            .await?;
 
         Ok(password)
-	}
+    }
 
-	pub async fn delete_session(db: &PgPool, user_id: i32) -> Result<(), Error> {
-		let q = "DELETE FROM sessions WHERE user_id = $1";
+    pub async fn delete_session(db: &PgPool, user_id: i32) -> Result<(), Error> {
+        let q = "DELETE FROM sessions WHERE user_id = $1";
 
-    	sqlx::query(q)
-        	.bind(user_id)
-        	.execute(db)
-        	.await?;
+        sqlx::query(q).bind(user_id).execute(db).await?;
 
-		Ok(())
-	}
+        Ok(())
+    }
 
-	pub async fn register_user(db: &PgPool, payload: &RegisterDTO, v_token: &str, hashed: &str) -> Result<(), Error> {
-		let q =
+    pub async fn register_user(
+        db: &PgPool,
+        payload: &RegisterDTO,
+        v_token: &str,
+        hashed: &str,
+    ) -> Result<(), Error> {
+        let q =
     	    "INSERT INTO users (email, username, password, verification_token) VALUES ($1, $2, $3, $4)";
 
-    	sqlx::query(&q)
-    	    .bind(&payload.email)
-    	    .bind(&payload.username)
-    	    .bind(hashed)
-    	    .bind(v_token)
-    	    .execute(db)
-    	    .await?;
+        sqlx::query(&q)
+            .bind(&payload.email)
+            .bind(&payload.username)
+            .bind(hashed)
+            .bind(v_token)
+            .execute(db)
+            .await?;
 
-		Ok(())
-	}
+        Ok(())
+    }
 
-	pub async fn session_token_insert(db: &PgPool, session: &str, user_id: i32) -> Result<(), Error> {
-		let q = "INSERT INTO sessions (session_token, user_id, expires_at) 
+    pub async fn session_token_insert(
+        db: &PgPool,
+        session: &str,
+        user_id: i32,
+    ) -> Result<(), Error> {
+        let q = "INSERT INTO sessions (session_token, user_id, expires_at) 
         VALUES ($1, $2, NOW() + INTERVAL '5 minutes')
         ON CONFLICT (user_id) 
         DO UPDATE SET 
             session_token = EXCLUDED.session_token, 
             expires_at = EXCLUDED.expires_at";
 
-    	sqlx::query(q)
-        	.bind(session)
-        	.bind(user_id)
-        	.execute(db)
-        	.await?;
+        sqlx::query(q)
+            .bind(session)
+            .bind(user_id)
+            .execute(db)
+            .await?;
 
-		Ok(())
-	}
+        Ok(())
+    }
 
-	pub async fn verify_user(db: &PgPool, token: &str) -> Result<bool, Error> {
-		let q = "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE verification_token = $1";
-    	let res = sqlx::query(q).bind(token).execute(db).await?;
+    pub async fn verify_user(db: &PgPool, token: &str) -> Result<bool, Error> {
+        let q = "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE verification_token = $1";
+        let res = sqlx::query(q).bind(token).execute(db).await?;
 
-		Ok(res.rows_affected() == 1)
-	}
+        Ok(res.rows_affected() == 1)
+    }
 
-	pub async fn reset_pass_req(db: &PgPool, p_token: &str, email: &str) -> Result<PgQueryResult, Error> {
-		let q =
+    pub async fn reset_pass_req(
+        db: &PgPool,
+        p_token: &str,
+        email: &str,
+    ) -> Result<PgQueryResult, Error> {
+        let q =
         	"UPDATE users SET reset_verification_token = $1, reset_expires_at = NOW() + INTERVAL '5 minutes' WHERE email = $2";
-    	sqlx::query(&q)
-        	.bind(p_token)
-        	.bind(email)
-        	.execute(db)
-        	.await
-	}
-	
-	pub async fn reset_pass_verify(db: &PgPool, token: &str) -> Result<Option<i32>, Error> {
-		let q =
-        	"SELECT id FROM users WHERE reset_verification_token = $1 AND reset_expires_at > NOW()";
-        let id = sqlx::query_scalar::<_, i32>(q)           
-			.bind(token)
+        sqlx::query(&q).bind(p_token).bind(email).execute(db).await
+    }
+
+    pub async fn reset_pass_verify(db: &PgPool, token: &str) -> Result<Option<i32>, Error> {
+        let q =
+            "SELECT id FROM users WHERE reset_verification_token = $1 AND reset_expires_at > NOW()";
+        let id = sqlx::query_scalar::<_, i32>(q)
+            .bind(token)
             .fetch_optional(db)
             .await?;
-		Ok(id)
-	}
-	
-	pub async fn reset_pass_update(db: &PgPool, hashed: &str, id: i32) -> Result<(), Error> {
-		let q =
-      		  	"UPDATE users SET password = $1, reset_verification_token = NULL, reset_expires_at = NULL WHERE id = $2";
-    	sqlx::query(&q)
-    	    .bind(hashed)
-			.bind(id)
-    	    .execute(db)
-    	    .await?;
-		Ok(())
-	}
+        Ok(id)
+    }
 
-	pub async fn resend_email(db: &PgPool, token: &str, email: &str) -> Result<PgQueryResult, Error> {
-		let q = "UPDATE users 
+    pub async fn reset_pass_update(db: &PgPool, hashed: &str, id: i32) -> Result<(), Error> {
+        let q =
+      		  	"UPDATE users SET password = $1, reset_verification_token = NULL, reset_expires_at = NULL WHERE id = $2";
+        sqlx::query(&q).bind(hashed).bind(id).execute(db).await?;
+        Ok(())
+    }
+
+    pub async fn resend_email(
+        db: &PgPool,
+        token: &str,
+        email: &str,
+    ) -> Result<PgQueryResult, Error> {
+        let q = "UPDATE users 
 			SET verification_token = $1 
 			WHERE email = $2 AND is_verified = FALSE";
-    	sqlx::query(&q)
-    	    .bind(token)
-    	    .bind(email)
-    	    .execute(db)
-    	    .await
-	}
+        sqlx::query(&q).bind(token).bind(email).execute(db).await
+    }
 
-	pub async fn user_info(db: &PgPool, id: i32) -> Result<Option<UserInfoDTO>, Error> {
-		let q = "SELECT email, username, notify_comment FROM users WHERE id = $1";
-		sqlx::query_as::<_, UserInfoDTO>(q)
-			.bind(id)
-			.fetch_optional(db)
-			.await
-	}
+    pub async fn user_info(db: &PgPool, id: i32) -> Result<Option<UserInfoDTO>, Error> {
+        let q = "SELECT email, username, notify_comment FROM users WHERE id = $1";
+        sqlx::query_as::<_, UserInfoDTO>(q)
+            .bind(id)
+            .fetch_optional(db)
+            .await
+    }
 
-	pub async fn update_user(
+    pub async fn update_user(
         db: &PgPool,
         user_id: i32,
         email: Option<&str>,
@@ -164,28 +170,28 @@ impl UserRepo {
         query_builder.push_bind(user_id);
 
         query_builder.build().execute(db).await?;
-        
+
         Ok(())
     }
 
-	pub async fn delete_user(db: &PgPool, user_id: i32) -> Result<(), Error> {
-		let dummy_email = format!("deleted_{}@camagru.local", user_id);
-    	let dummy_username = format!("deleted_{}", user_id);
+    pub async fn delete_user(db: &PgPool, user_id: i32) -> Result<(), Error> {
+        let dummy_email = format!("deleted_{}@camagru.local", user_id);
+        let dummy_username = format!("deleted_{}", user_id);
 
-    	let q = "UPDATE users 
+        let q = "UPDATE users 
     	SET is_deleted = TRUE, 
     	    email = $1,
     	    username = $2,
     	    password = ''
     	WHERE id = $3";
-		
-    	sqlx::query(q)
-    	    .bind(dummy_email)
-    	    .bind(dummy_username)
-    	    .bind(user_id)
-    	    .execute(db)
-    	    .await?;
 
-		Ok(())
-	}
+        sqlx::query(q)
+            .bind(dummy_email)
+            .bind(dummy_username)
+            .bind(user_id)
+            .execute(db)
+            .await?;
+
+        Ok(())
+    }
 }

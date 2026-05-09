@@ -1,19 +1,23 @@
-use crate::dto::request_dto::{LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, UserUpdateDTO, TokenQuery};
-use crate::headers::{Request, Response, Status};
-use crate::unwrap_or_return;
-use crate::utils::{log_error, send_email, AppState, EmailConfig, extract_json};
+use crate::dto::request_dto::{
+    LoginDTO, ReEmailDTO, RePassDTO, RegisterDTO, TokenQuery, UserUpdateDTO,
+};
 use crate::repositories::user_repo::UserRepo;
+use crate::utils::{log_error, send_email, AppState, EmailConfig};
+use axum::extract::{Extension, Json, Query, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Redirect, Response as AxumResponse};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
 use std::sync::OnceLock;
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response as AxumResponse, Redirect};
-use axum::extract::{Json, State, Extension, Query};
-use axum_extra::extract::cookie::{Cookie, CookieJar};
 
-pub async fn log_in(State(state): State<Arc<AppState>>, jar: CookieJar, Json(payload): Json<LoginDTO>) -> AxumResponse {
+pub async fn log_in(
+    State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    Json(payload): Json<LoginDTO>,
+) -> AxumResponse {
     let search_by = match validate_login_input(&payload) {
         LoginField::Email => "email",
         LoginField::Username => "username",
@@ -32,37 +36,40 @@ pub async fn log_in(State(state): State<Arc<AppState>>, jar: CookieJar, Json(pay
     if db_user.is_deleted || !verify_login(&payload.password, &db_user.password) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    
+
     if !db_user.is_verified {
         return StatusCode::FORBIDDEN.into_response();
     }
-	
-	let session = generate_token();
-	match UserRepo::session_token_insert(&state.db, &session, db_user.id).await {
-		Ok(_) => {
-			let mut cookie = Cookie::new("auth_token", session);
-			cookie.set_http_only(true);
-			cookie.set_path("/");
-    		cookie.set_secure(false);
-			let updated_jar = jar.add(cookie);
-			(updated_jar, StatusCode::OK).into_response()
-		},
+
+    let session = generate_token();
+    match UserRepo::session_token_insert(&state.db, &session, db_user.id).await {
+        Ok(_) => {
+            let mut cookie = Cookie::new("auth_token", session);
+            cookie.set_http_only(true);
+            cookie.set_path("/");
+            cookie.set_secure(false);
+            let updated_jar = jar.add(cookie);
+            (updated_jar, StatusCode::OK).into_response()
+        }
         Err(e) => {
             log_error("Error saving session token", e);
-           StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
-	}
+    }
 }
 
-pub async fn log_out(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, jar: CookieJar) -> AxumResponse {
-
+pub async fn log_out(
+    State(state): State<Arc<AppState>>,
+    Extension(user_id): Extension<i32>,
+    jar: CookieJar,
+) -> AxumResponse {
     match UserRepo::delete_session(&state.db, user_id).await {
         Ok(_) => {
-			let mut cookie = Cookie::new("auth_token", "");
-			cookie.set_path("/");
-			let updated_jar = jar.remove(cookie);
-			(updated_jar, StatusCode::OK).into_response()
-		},
+            let mut cookie = Cookie::new("auth_token", "");
+            cookie.set_path("/");
+            let updated_jar = jar.remove(cookie);
+            (updated_jar, StatusCode::OK).into_response()
+        }
         Err(err) => {
             log_error("Database error deleting session token (log_out)", err);
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -70,47 +77,47 @@ pub async fn log_out(State(state): State<Arc<AppState>>, Extension(user_id): Ext
     }
 }
 
-pub async fn register(State(state): State<Arc<AppState>>, Json(payload): Json<RegisterDTO>) -> impl IntoResponse {
-	if !validate_register_input(&payload) {
+pub async fn register(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<RegisterDTO>,
+) -> impl IntoResponse {
+    if !validate_register_input(&payload) {
         return StatusCode::BAD_REQUEST;
     }
-	let hashed = match hash_password(&payload.password) {
+    let hashed = match hash_password(&payload.password) {
         Ok(hashed) => hashed,
         Err(e) => {
             log_error("Error hashing a password", e);
             return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
-	let v_token = generate_token();
-	match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
+    let v_token = generate_token();
+    match UserRepo::register_user(&state.db, &payload, &v_token, &hashed).await {
         Ok(_) => {
             let email = payload.email.clone();
             let v_token = v_token.clone();
             let email_conf = state.email_conf.clone();
-			
+
             tokio::spawn(async move {
                 prepare_email(email_conf, email, v_token).await;
             });
             StatusCode::OK
-        },
-        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-            StatusCode::CONFLICT
-        },
+        }
+        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => StatusCode::CONFLICT,
         Err(e) => {
             log_error("Error inserting user during registration", e);
             StatusCode::INTERNAL_SERVER_ERROR
-        },
+        }
     }
 }
 
-pub async fn user_verify(State(state): State<Arc<AppState>>, Query(query): Query<TokenQuery>) -> impl IntoResponse {
+pub async fn user_verify(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<TokenQuery>,
+) -> impl IntoResponse {
     match UserRepo::verify_user(&state.db, &query.token).await {
-        Ok(true) => {
-            Redirect::to("/econf")
-		},
-		Ok(false) => {
-            Redirect::to("/error")
-		},
+        Ok(true) => Redirect::to("/econf"),
+        Ok(false) => Redirect::to("/error"),
         Err(e) => {
             log_error("Database error verifying user", e);
             Redirect::to("/error")
@@ -122,7 +129,10 @@ pub async fn me() -> impl IntoResponse {
     StatusCode::OK
 }
 
-pub async fn re_pass(State(state): State<Arc<AppState>>, Json(payload): Json<ReEmailDTO>) -> impl IntoResponse {
+pub async fn re_pass(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ReEmailDTO>,
+) -> impl IntoResponse {
     if !validate_email(&payload.email) {
         return StatusCode::BAD_REQUEST;
     }
@@ -130,13 +140,13 @@ pub async fn re_pass(State(state): State<Arc<AppState>>, Json(payload): Json<ReE
 
     match UserRepo::reset_pass_req(&state.db, &p_token, &payload.email).await {
         Ok(res) => {
-			if res.rows_affected() > 0 {
-				let email_conf = state.email_conf.clone();
-            	tokio::spawn(async move {
-            	    prepare_reset_email(email_conf, payload.email, p_token).await;
-            	});
-			}
-           StatusCode::OK
+            if res.rows_affected() > 0 {
+                let email_conf = state.email_conf.clone();
+                tokio::spawn(async move {
+                    prepare_reset_email(email_conf, payload.email, p_token).await;
+                });
+            }
+            StatusCode::OK
         }
         Err(e) => {
             log_error("Error updating reset token", e);
@@ -150,7 +160,11 @@ pub async fn re_pass_verify(Query(query): Query<TokenQuery>) -> impl IntoRespons
     Redirect::to(&frontend_url)
 }
 
-pub async fn re_pass_new(State(state): State<Arc<AppState>>, Query(query): Query<TokenQuery>, Json(payload): Json<RePassDTO>) -> impl IntoResponse {	
+pub async fn re_pass_new(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<TokenQuery>,
+    Json(payload): Json<RePassDTO>,
+) -> impl IntoResponse {
     let hashed = match hash_password(&payload.password) {
         Ok(hashed) => hashed,
         Err(e) => {
@@ -158,22 +172,16 @@ pub async fn re_pass_new(State(state): State<Arc<AppState>>, Query(query): Query
             return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
-    
+
     match UserRepo::reset_pass_verify(&state.db, &query.token).await {
-        Ok(Some(id)) => {
-    		match UserRepo::reset_pass_update(&state.db, &hashed, id).await {
-    		    Ok(_) => {
-    		        StatusCode::OK
-    		    }
-    		    Err(e) => {
-    		        log_error("Error updating reset token", e);
-    		        StatusCode::INTERNAL_SERVER_ERROR
-    		    }
-    		}
+        Ok(Some(id)) => match UserRepo::reset_pass_update(&state.db, &hashed, id).await {
+            Ok(_) => StatusCode::OK,
+            Err(e) => {
+                log_error("Error updating reset token", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         },
-		Ok(None) => {
-			StatusCode::BAD_REQUEST
-		},
+        Ok(None) => StatusCode::BAD_REQUEST,
         Err(e) => {
             log_error("Error updating reset token", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -181,7 +189,10 @@ pub async fn re_pass_new(State(state): State<Arc<AppState>>, Query(query): Query
     }
 }
 
-pub async fn re_email(State(state): State<Arc<AppState>>, Json(payload): Json<ReEmailDTO>) -> impl IntoResponse {
+pub async fn re_email(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ReEmailDTO>,
+) -> impl IntoResponse {
     let token = generate_token();
 
     match UserRepo::resend_email(&state.db, &token, &payload.email).await {
@@ -199,9 +210,7 @@ pub async fn re_email(State(state): State<Arc<AppState>>, Json(payload): Json<Re
             });
             StatusCode::OK
         }
-        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-            StatusCode::CONFLICT
-        }
+        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => StatusCode::CONFLICT,
         Err(e) => {
             log_error("Error inserting user during registration", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -209,66 +218,80 @@ pub async fn re_email(State(state): State<Arc<AppState>>, Json(payload): Json<Re
     }
 }
 
-pub async fn info(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>) -> AxumResponse {
-	match UserRepo::user_info(&state.db, user_id).await {
-		Ok(Some(dto)) => {
-			(StatusCode::OK, Json(dto)).into_response()
-		},
-		Ok(None) => StatusCode::NOT_FOUND.into_response(),
+pub async fn info(
+    State(state): State<Arc<AppState>>,
+    Extension(user_id): Extension<i32>,
+) -> AxumResponse {
+    match UserRepo::user_info(&state.db, user_id).await {
+        Ok(Some(dto)) => (StatusCode::OK, Json(dto)).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
             log_error("Database error fetching user info details", e);
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
-	}
+    }
 }
 
-pub async fn update(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, Json(payload): Json<UserUpdateDTO>) -> impl IntoResponse {
-	if payload.email.is_none() 
-        && payload.username.is_none() 
-        && payload.notify_comment.is_none() 
-        && payload.new_password.is_none() {
+pub async fn update(
+    State(state): State<Arc<AppState>>,
+    Extension(user_id): Extension<i32>,
+    Json(payload): Json<UserUpdateDTO>,
+) -> impl IntoResponse {
+    if payload.email.is_none()
+        && payload.username.is_none()
+        && payload.notify_comment.is_none()
+        && payload.new_password.is_none()
+    {
         return StatusCode::BAD_REQUEST;
     }
-	
-	let db_password = match UserRepo::get_password(&state.db, user_id).await {
-		Ok(password) => password,
-		Err(err)  => {
-			log_error("Error getting password from DB on update", err);
-			return StatusCode::INTERNAL_SERVER_ERROR;
-		}
-	};
 
-	if !verify_login(&payload.current_password, &db_password) {
-		return StatusCode::FORBIDDEN;
-	}
+    let db_password = match UserRepo::get_password(&state.db, user_id).await {
+        Ok(password) => password,
+        Err(err) => {
+            log_error("Error getting password from DB on update", err);
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    };
+
+    if !verify_login(&payload.current_password, &db_password) {
+        return StatusCode::FORBIDDEN;
+    }
 
     if let Some(email) = &payload.email {
-		if !validate_email(email) { return StatusCode::BAD_REQUEST; }
+        if !validate_email(email) {
+            return StatusCode::BAD_REQUEST;
+        }
     }
 
     if let Some(username) = &payload.username {
-		if !validate_username(username) { return StatusCode::BAD_REQUEST; }
+        if !validate_username(username) {
+            return StatusCode::BAD_REQUEST;
+        }
     }
 
-	let mut hashed_pass = None;
-	if let Some(password) = &payload.new_password  {
-		if !validate_password(password) { return StatusCode::BAD_REQUEST; }
-		match hash_password(password) {
-        	Ok(hashed) => hashed_pass = Some(hashed),
-        	Err(e) => {
-        	    log_error("Error hashing a new password", e);
-        	    return StatusCode::INTERNAL_SERVER_ERROR;;
-        	}
-    	};
-	}
+    let mut hashed_pass = None;
+    if let Some(password) = &payload.new_password {
+        if !validate_password(password) {
+            return StatusCode::BAD_REQUEST;
+        }
+        match hash_password(password) {
+            Ok(hashed) => hashed_pass = Some(hashed),
+            Err(e) => {
+                log_error("Error hashing a new password", e);
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        };
+    }
 
     let res = UserRepo::update_user(
-		&state.db, 
-		user_id,
-		payload.email.as_deref(), 
-		payload.username.as_deref(),
-		payload.notify_comment,
-		hashed_pass.as_deref()).await;
+        &state.db,
+        user_id,
+        payload.email.as_deref(),
+        payload.username.as_deref(),
+        payload.notify_comment,
+        hashed_pass.as_deref(),
+    )
+    .await;
 
     match res {
         Ok(_) => StatusCode::OK,
@@ -279,31 +302,36 @@ pub async fn update(State(state): State<Arc<AppState>>, Extension(user_id): Exte
     }
 }
 
-pub async fn delete(State(state): State<Arc<AppState>>, Extension(user_id): Extension<i32>, jar: CookieJar, Json(payload): Json<RePassDTO>) -> AxumResponse {
-	let db_password = match UserRepo::get_password(&state.db, user_id).await {
-		Ok(password) => password,
-		Err(err)  => {
-			log_error("Error getting password from DB on update", err);
-			return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-		}
-	};
+pub async fn delete(
+    State(state): State<Arc<AppState>>,
+    Extension(user_id): Extension<i32>,
+    jar: CookieJar,
+    Json(payload): Json<RePassDTO>,
+) -> AxumResponse {
+    let db_password = match UserRepo::get_password(&state.db, user_id).await {
+        Ok(password) => password,
+        Err(err) => {
+            log_error("Error getting password from DB on update", err);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
 
-	if !verify_login(&payload.password, &db_password) {
-		return StatusCode::FORBIDDEN.into_response();
-	}
+    if !verify_login(&payload.password, &db_password) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
 
-	match UserRepo::delete_user(&state.db, user_id).await {
-		Ok(_) => { 
-			let mut remove_cookie = Cookie::new("auth_token", "");
+    match UserRepo::delete_user(&state.db, user_id).await {
+        Ok(_) => {
+            let mut remove_cookie = Cookie::new("auth_token", "");
             remove_cookie.set_path("/");
             let updated_jar = jar.remove(remove_cookie);
             (updated_jar, StatusCode::OK).into_response()
-		},
-		Err(err) => {
-			log_error("Error deleting user", err);
-			return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-		}
-	}
+        }
+        Err(err) => {
+            log_error("Error deleting user", err);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
 }
 
 async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: String) {
@@ -331,9 +359,9 @@ async fn prepare_reset_email(email_conf: EmailConfig, recv_email: String, token:
 }
 
 enum LoginField {
-	Email,
-	Username,
-	Invalid
+    Email,
+    Username,
+    Invalid,
 }
 fn validate_login_input(login_dto: &LoginDTO) -> LoginField {
     if validate_password(login_dto.password.as_str()) {
@@ -353,11 +381,10 @@ fn validate_register_input(register_dto: &RegisterDTO) -> bool {
 }
 
 fn validate_email(email: &str) -> bool {
-	static EMAIL_REGEX: OnceLock<regex::Regex> = OnceLock::new();
-	let regex = EMAIL_REGEX.get_or_init(|| {
-        regex::Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap()
-    });
-    
+    static EMAIL_REGEX: OnceLock<regex::Regex> = OnceLock::new();
+    let regex =
+        EMAIL_REGEX.get_or_init(|| regex::Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap());
+
     regex.is_match(email)
 }
 
@@ -400,63 +427,4 @@ fn generate_token() -> String {
         .collect();
 
     token
-}
-
-async fn session_token_insert(state: &Arc<AppState>, session: String, user_id: i32) -> Response {
-    let q = "INSERT INTO sessions (session_token, user_id, expires_at) 
-        VALUES ($1, $2, NOW() + INTERVAL '5 minutes')
-        ON CONFLICT (user_id) 
-        DO UPDATE SET 
-            session_token = EXCLUDED.session_token, 
-            expires_at = EXCLUDED.expires_at";
-
-    let result = sqlx::query(q)
-        .bind(&session)
-        .bind(&user_id)
-        .execute(&state.db)
-        .await;
-    match result {
-        Ok(_) => Response::cookie(Status::Ok, session),
-        Err(e) => {
-            log_error("Error saving session token", e);
-            Response::empty(Status::InternalServerError)
-        }
-    }
-}
-
-pub fn token_query(query: &str) -> Option<String> {
-    let mut key_value = query.splitn(2, '=');
-    let key = key_value.next().unwrap_or("");
-    let value = key_value.next().unwrap_or("");
-
-    match key {
-        "token" => Some(value.to_string()),
-        _ => return None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_password() {
-        assert!(validate_password("Pass1"));
-        assert!(validate_password("Secur1ty"));
-
-        assert!(!validate_password("pass"), "Zu kurz");
-        assert!(!validate_password("password123"), "Kein Großbuchstabe");
-        assert!(!validate_password("PASSWORD123"), "Kein Kleinbuchstabe");
-        assert!(!validate_password("Password"), "Keine Zahl");
-    }
-
-    #[test]
-    fn test_validate_username() {
-        assert!(validate_username("user_123"));
-        assert!(validate_username("Valid-Name"));
-
-        assert!(!validate_username("ab"), "Zu kurz");
-        assert!(!validate_username("dies_ist_ein_viel_zu_langer_name"), "Zu lang");
-        assert!(!validate_username("user@name"), "Ungültiges Sonderzeichen");
-    }
 }

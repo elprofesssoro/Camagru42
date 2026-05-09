@@ -1,22 +1,27 @@
+use crate::utils::{log_error, AppState};
 use axum::{
-    extract::{State, Request},
+    extract::{Request, State},
     http::StatusCode,
-    response::Response,
     middleware::Next,
+    response::Response,
 };
 use axum_extra::extract::cookie::CookieJar;
-use sqlx::Row;
 use chrono::{DateTime, Utc};
+use sqlx::Row;
 use std::sync::Arc;
-use crate::utils::{AppState, log_error};
 
-pub async fn auth_middleware(State(state): State<Arc<AppState>>, jar: CookieJar, mut request: Request, next: Next) -> Result<Response, StatusCode> {
-	let session_token = match jar.get("auth_token") {
-		Some(cookie) => cookie.value().to_string(),
-		None => return Err(StatusCode::UNAUTHORIZED)
-	};
+pub async fn auth_middleware(
+    State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    mut request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let session_token = match jar.get("auth_token") {
+        Some(cookie) => cookie.value().to_string(),
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
 
-	let q = "SELECT user_id, expires_at FROM sessions WHERE session_token = $1";
+    let q = "SELECT user_id, expires_at FROM sessions WHERE session_token = $1";
     let result = sqlx::query(q)
         .bind(&session_token)
         .fetch_optional(&state.db)
@@ -26,7 +31,7 @@ pub async fn auth_middleware(State(state): State<Arc<AppState>>, jar: CookieJar,
         Ok(Some(row)) => {
             let expires_at: DateTime<Utc> = row.get("expires_at");
             let now = Utc::now();
-            
+
             if expires_at < now {
                 let q = "DELETE FROM sessions WHERE session_token = $1";
                 let _ = sqlx::query(q).bind(&session_token).execute(&state.db).await;
@@ -44,9 +49,9 @@ pub async fn auth_middleware(State(state): State<Arc<AppState>>, jar: CookieJar,
                 });
             }
 
-			let user_id: i32 = row.get("user_id");
-			request.extensions_mut().insert(user_id);
-			Ok(next.run(request).await) 
+            let user_id: i32 = row.get("user_id");
+            request.extensions_mut().insert(user_id);
+            Ok(next.run(request).await)
         }
         Ok(None) => Err(StatusCode::UNAUTHORIZED),
         Err(err) => {
@@ -54,18 +59,4 @@ pub async fn auth_middleware(State(state): State<Arc<AppState>>, jar: CookieJar,
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
-}
-
-fn extract_session_token(cookie_header: &str) -> Option<String> {
-    for cookie_pair in cookie_header.split(';') {
-        let trimmed_pair = cookie_pair.trim();
-
-        if let Some((key, value)) = trimmed_pair.split_once('=') {
-            if key == "auth_token" {
-                return Some(value.to_string());
-            }
-        }
-    }
-
-    None
 }
