@@ -56,13 +56,22 @@ Currently, the frontend is built using Vanilla JS/HTML/CSS to fulfill the base r
 ## 🖼️ Screenshots
 
 ### Gallery & Feed
-![Gallery View](./docs/gallery_screenshot.png)
+![Gallery View](./docs/gallery.png)
 
 ### Studio & Photomontage
-![Create Studio](./docs/studio_screenshot.png)
+![Create Studio](./docs/create.png)
 
 ### User Profile
-![Profile View](./docs/profile_screenshot.png)
+![Profile View](./docs/user_info.png)
+
+### Image Information
+![Profile View](./docs/img_info.png)
+
+### LogIn Page
+![Profile View](./docs/login.png)
+
+### Register Page
+![Profile View](./docs/register.png)
 
 ---
 
