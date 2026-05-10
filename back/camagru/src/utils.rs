@@ -15,6 +15,7 @@ pub struct AppState {
 pub struct EmailConfig {
     email: String,
     password: String,
+    ip: String
 }
 
 impl EmailConfig {
@@ -24,13 +25,17 @@ impl EmailConfig {
     pub fn get_pass(&self) -> String {
         self.password.clone()
     }
+    pub fn get_email_ip(&self) -> String {
+        self.ip.clone()
+    }
     pub fn get_env() -> Result<Self, Error> {
         let email = env::var("EMAIL_HOST")
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotFound, e))?;
         let password = env::var("PASSWORD_HOST")
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotFound, e))?;
-
-        Ok(Self { email, password })
+        let ip = env::var("EMAIL_IP")
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotFound, e))?;
+        Ok(Self { email, password , ip})
     }
 }
 

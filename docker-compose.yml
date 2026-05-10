@@ -38,6 +38,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       EMAIL_HOST: ${EMAIL_HOST}
       PASSWORD_HOST: ${PASSWORD_HOST}
+      EMAIL_IP: ${EMAIL_IP}
       PUBLIC_DIR: /app/pub
     volumes:
       - ./pub:/app/pub

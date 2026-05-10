@@ -2,7 +2,7 @@ async function updateNavigation() {
 
 
 	const loginBtn = document.querySelector("#nav-login");
-	const logoutBtn = document.querySelector("#nav-logout");
+	const logoutBtn = document.querySelector("#logoutButton");
 	const createBtn = document.querySelector("#nav-create");
 
 	if (isLoggedIn) {
@@ -20,7 +20,7 @@ window.addEventListener("pageshow", async () => {
 	await initializeAuth();
 	updateNavigation();
 
-	const logoutBtn = document.querySelector("#nav-logout");
+	const logoutBtn = document.querySelector("#logoutButton");
 	if (logoutBtn) {
 		logoutBtn.addEventListener("click", async () => {
 			const response = await callApi("logout", { method: "POST" });

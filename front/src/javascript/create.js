@@ -15,6 +15,7 @@ const fileInput = document.querySelector("#upload-file");
 const resetButton = document.querySelector("#reset-btn");
 const webcam = document.querySelector("#video-feed");
 const captureButton = document.querySelector("#capture-btn");
+const overlay = document.querySelector("#overlay-layer");
 
 fileInput.addEventListener("change", uploadImage);
 postButton.addEventListener("click", postImage);
@@ -22,13 +23,14 @@ resetButton.addEventListener("click", resetImage);
 captureButton.addEventListener("click", captureImage);
 document.querySelector("#userInfoButton").addEventListener("click", showUserInfo);
 
-
-
 let isUploaded = false;
 let isStickered = false;
 let hasCapturedWithSticker = false;
 let captureLocked = false;
-
+let currentSticker = null;
+let isDragging = false;
+let offsetX = 0;
+let offsetY = 0;
 const currentFrameCanvas = document.createElement('canvas');
 const previousFrameCanvas = document.createElement('canvas');
 const currentFrameCtx = currentFrameCanvas.getContext('2d');
@@ -298,7 +300,7 @@ async function showUserInfo() {
 			} else if (response.status === 401) {
 				window.location.href = "log.html?error=unauthorized";
 				return;
-			} 
+			}
 			else if (response.status === 403) {
 				showPopup("Wrong current password.", "error", "#delete-account-btn");
 			}
@@ -402,6 +404,11 @@ function updateHistory() {
 }
 
 function activateCamera() {
+	if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("Camera access is blocked. Is the site running over HTTPS or localhost?");
+        showPopup("Camera blocked: Connection is not secure (HTTPS required).", "error", "#video-feed");
+        return;
+    }
 	navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
 		webcam.srcObject = stream;
 		webcam.style.display = "block";
@@ -440,32 +447,56 @@ function startFrameBuffering() {
 }
 
 function uploadImage(event) {
-	clearEditorState();
-	hasCapturedWithSticker = false;
-	captureLocked = false;
-	postButton.disabled = true;
-	captureButton.disabled = true;
+    clearEditorState();
+    hasCapturedWithSticker = false;
+    captureLocked = false;
+    postButton.disabled = true;
+    captureButton.disabled = true;
 
-	const file = event.target.files[0];
-	if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-	if (webcam.srcObject) {
-		const tracks = webcam.srcObject.getTracks();
-		tracks.forEach(track => track.stop());
-		webcam.srcObject = null;
-	}
+    if (webcam.srcObject) {
+        const tracks = webcam.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        webcam.srcObject = null;
+    }
 
-	webcam.style.display = "none";
+    webcam.style.display = "none";
+    
+    const img = new Image();
+    img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 500; 
+        canvas.height = 500; 
+        const ctx = canvas.getContext("2d");
 
-	const imageUrl = URL.createObjectURL(file);
-	const postHTML = `
-        <div class="post">
-            <img src="${imageUrl}" alt="Uploaded Image" style="max-width: 100%;">
-        </div>
-    `;
-	document.querySelector("#overlay-layer").insertAdjacentHTML('afterbegin', postHTML);
-	isUploaded = true;
-	postButton.disabled = !(isStickered && isUploaded);
+        const aspect = img.width / img.height;
+        const targetAspect = canvas.width / canvas.height;
+        let drawWidth = canvas.width, drawHeight = canvas.height;
+        let drawX = 0, drawY = 0;
+
+        if (aspect > targetAspect) {
+            drawWidth = canvas.height * aspect;
+            drawX = (canvas.width - drawWidth) / 2;
+        } else {
+            drawHeight = canvas.width / aspect;
+            drawY = (canvas.height - drawHeight) / 2;
+        }
+
+        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+        const imageUrl = canvas.toDataURL("image/png");
+        const postHTML = `
+            <div class="post" style="width: 100%; height: 100%;">
+                <img src="${imageUrl}" alt="Uploaded Image" style="width: 100%; height: 100%; display: block;">
+            </div>
+        `;
+        document.querySelector("#overlay-layer").insertAdjacentHTML('afterbegin', postHTML);
+        isUploaded = true;
+        postButton.disabled = !(isStickered && isUploaded);
+    };
+    img.src = URL.createObjectURL(file);
 }
 
 function clearEditorState() {
@@ -615,12 +646,7 @@ function toDataUrl(img) {
 	});
 }
 
-const overlay = document.querySelector("#overlay-layer");
 
-let currentSticker = null;
-let isDragging = false;
-let offsetX = 0;
-let offsetY = 0;
 
 function loadStickers() {
 	fetch('/pub/stickers/')

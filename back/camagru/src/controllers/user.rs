@@ -335,7 +335,7 @@ pub async fn delete(
 }
 
 async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: String) {
-    let verify_link = format!("http://localhost:80/api/verify?token={}", token);
+    let verify_link = format!("http://{}:80/api/verify?token={}", email_conf.get_email_ip(),token);
     let from = format!("Camagru Admin <{}>", email_conf.get_email());
     let to = format!("<{}>", recv_email);
     let subject = "Welcome to Camagru! Verify your account".to_string();
@@ -347,7 +347,7 @@ async fn prepare_email(email_conf: EmailConfig, recv_email: String, token: Strin
 }
 
 async fn prepare_reset_email(email_conf: EmailConfig, recv_email: String, token: String) {
-    let reset_link = format!("http://localhost:80/api/re-pass/verify?token={}", token);
+    let reset_link = format!("http://{}:80/api/re-pass/verify?token={}", email_conf.get_email_ip(), token);
     let from = format!("Camagru Admin <{}>", email_conf.get_email());
     let to = format!("<{}>", recv_email);
     let subject = "Reset your password".to_string();
